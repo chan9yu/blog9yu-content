@@ -93,11 +93,11 @@ MQTT는 와일드카드 기능을 통해 특정 주제 범위에 걸쳐 메시�
 
 토픽 필터는 특정 패턴에 맞는 토픽을 구독하는 기능입니다.
 
-| 필터              | 수신 가능                                                                                     | 수신 불가능                                             |
-| ----------------- | --------------------------------------------------------------------------------------------- | ------------------------------------------------------- |
-| home/kitchen/+    | home/kitchen/fridge, home/kitchen/oven                                                        | home/kitchen/fridge/temperature (추가 레벨이 있기 때문) |
-| home/#            | home/kitchen/fridge, home/kitchen/oven, home/livingroom/sofa, home/kitchen/fridge/temperature | -                                                       |
-| vehicles/+/status | vehicles/car/status, vehicles/bike/status                                                     | vehicles/car/status/battery                             |
+| 필터              | 수신 가능                                                                                                 | 수신 불가능                                                           |
+| ----------------- | --------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------- |
+| home/kitchen/+    | home/kitchen/fridge<br />home/kitchen/oven                                                                | home/kitchen/fridge/temperature<br />(추가 레벨이 있기 때문에 불가능) |
+| home/#            | home/kitchen/fridge<br />home/kitchen/oven<br />home/livingroom/sofa<br />home/kitchen/fridge/temperature | -                                                                     |
+| vehicles/+/status | vehicles/car/status<br />vehicles/bike/status                                                             | vehicles/car/status/battery                                           |
 
 ## QoS(Quality of Service) 레벨
 
