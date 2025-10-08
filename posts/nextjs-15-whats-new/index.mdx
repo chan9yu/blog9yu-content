@@ -30,9 +30,9 @@ React 19의 새로운 컴파일러는 `useMemo`, `useCallback`, `React.memo`를 
 ```js
 // next.config.js
 module.exports = {
-  experimental: {
-    reactCompiler: true,
-  },
+	experimental: {
+		reactCompiler: true
+	}
 };
 ```
 
@@ -41,18 +41,18 @@ module.exports = {
 ```jsx
 // Before (React 18)
 const Component = React.memo(({ data }) => {
-  const processed = useMemo(() => processData(data), [data]);
-  const handleClick = useCallback(() => {}, []);
+	const processed = useMemo(() => processData(data), [data]);
+	const handleClick = useCallback(() => {}, []);
 
-  return <div>{processed}</div>;
+	return <div>{processed}</div>;
 });
 
 // After (React 19 with Compiler)
 function Component({ data }) {
-  const processed = processData(data);
-  const handleClick = () => {};
+	const processed = processData(data);
+	const handleClick = () => {};
 
-  return <div>{processed}</div>;
+	return <div>{processed}</div>;
 }
 ```
 
@@ -95,7 +95,7 @@ Next.js 15에서는 `params`, `searchParams`, `cookies`, `headers` 등이 비동
 ```tsx
 // app/blog/[slug]/page.tsx
 export default function Page({ params }: { params: { slug: string } }) {
-  return <h1>{params.slug}</h1>;
+	return <h1>{params.slug}</h1>;
 }
 ```
 
@@ -103,28 +103,20 @@ export default function Page({ params }: { params: { slug: string } }) {
 
 ```tsx
 // app/blog/[slug]/page.tsx
-export default async function Page({
-  params,
-}: {
-  params: Promise<{ slug: string }>;
-}) {
-  const { slug } = await params;
-  return <h1>{slug}</h1>;
+export default async function Page({ params }: { params: Promise<{ slug: string }> }) {
+	const { slug } = await params;
+	return <h1>{slug}</h1>;
 }
 ```
 
 ## searchParams도 동일하게 변경
 
 ```tsx
-export default async function SearchPage({
-  searchParams,
-}: {
-  searchParams: Promise<{ q: string }>;
-}) {
-  const { q } = await searchParams;
-  const results = await search(q);
+export default async function SearchPage({ searchParams }: { searchParams: Promise<{ q: string }> }) {
+	const { q } = await searchParams;
+	const results = await search(q);
 
-  return <Results data={results} />;
+	return <Results data={results} />;
 }
 ```
 
@@ -138,6 +130,7 @@ next dev --turbo
 ```
 
 **성능 개선:**
+
 - 로컬 서버 시작: **최대 76.7% 빠름**
 - 코드 업데이트 반영: **최대 96.3% 빠름**
 - Fast Refresh: **최대 45.8% 빠름**
@@ -145,12 +138,12 @@ next dev --turbo
 ```js
 // next.config.js
 module.exports = {
-  // Turbopack 기본 활성화
-  experimental: {
-    turbo: {
-      // Turbopack 설정
-    },
-  },
+	// Turbopack 기본 활성화
+	experimental: {
+		turbo: {
+			// Turbopack 설정
+		}
+	}
 };
 ```
 
@@ -160,14 +153,14 @@ module.exports = {
 
 ```tsx
 // Next.js 14: 기본 캐싱
-const data = await fetch('https://api.example.com/data');
+const data = await fetch("https://api.example.com/data");
 
 // Next.js 15: 기본 no-cache
-const data = await fetch('https://api.example.com/data');
+const data = await fetch("https://api.example.com/data");
 
 // 캐싱이 필요하면 명시적으로 지정
-const data = await fetch('https://api.example.com/data', {
-  cache: 'force-cache',
+const data = await fetch("https://api.example.com/data", {
+	cache: "force-cache"
 });
 ```
 
@@ -176,19 +169,19 @@ const data = await fetch('https://api.example.com/data', {
 서버 함수의 결과를 캐싱할 수 있습니다.
 
 ```tsx
-import { unstable_cache } from 'next/cache';
+import { unstable_cache } from "next/cache";
 
 const getCachedPosts = unstable_cache(
-  async () => {
-    return await db.posts.findMany();
-  },
-  ['posts'],
-  { revalidate: 3600 } // 1시간
+	async () => {
+		return await db.posts.findMany();
+	},
+	["posts"],
+	{ revalidate: 3600 } // 1시간
 );
 
 export default async function Posts() {
-  const posts = await getCachedPosts();
-  return <PostList posts={posts} />;
+	const posts = await getCachedPosts();
+	return <PostList posts={posts} />;
 }
 ```
 
@@ -198,29 +191,29 @@ export default async function Posts() {
 
 ```tsx
 export default async function ProductPage({ params }: Props) {
-  // 정적 부분
-  const product = await getProduct(params.id);
+	// 정적 부분
+	const product = await getProduct(params.id);
 
-  return (
-    <div>
-      {/* 정적: 빌드 타임에 생성 */}
-      <ProductInfo product={product} />
+	return (
+		<div>
+			{/* 정적: 빌드 타임에 생성 */}
+			<ProductInfo product={product} />
 
-      {/* 동적: 요청 시 생성 */}
-      <Suspense fallback={<ReviewsSkeleton />}>
-        <DynamicReviews productId={params.id} />
-      </Suspense>
-    </div>
-  );
+			{/* 동적: 요청 시 생성 */}
+			<Suspense fallback={<ReviewsSkeleton />}>
+				<DynamicReviews productId={params.id} />
+			</Suspense>
+		</div>
+	);
 }
 ```
 
 ```js
 // next.config.js
 module.exports = {
-  experimental: {
-    ppr: true, // Partial Prerendering
-  },
+	experimental: {
+		ppr: true // Partial Prerendering
+	}
 };
 ```
 
@@ -231,15 +224,15 @@ module.exports = {
 ```ts
 // instrumentation.ts (루트)
 export async function register() {
-  if (process.env.NEXT_RUNTIME === 'nodejs') {
-    // Node.js 런타임에서만 실행
-    await import('./monitoring');
-  }
+	if (process.env.NEXT_RUNTIME === "nodejs") {
+		// Node.js 런타임에서만 실행
+		await import("./monitoring");
+	}
 
-  if (process.env.NEXT_RUNTIME === 'edge') {
-    // Edge 런타임에서만 실행
-    await import('./edge-monitoring');
-  }
+	if (process.env.NEXT_RUNTIME === "edge") {
+		// Edge 런타임에서만 실행
+		await import("./edge-monitoring");
+	}
 }
 ```
 
@@ -256,10 +249,10 @@ npm install next@15 react@19 react-dom@19
 ```tsx
 // 모든 params, searchParams를 비동기로 변경
 export default async function Page({ params, searchParams }) {
-  const resolvedParams = await params;
-  const resolvedSearchParams = await searchParams;
+	const resolvedParams = await params;
+	const resolvedSearchParams = await searchParams;
 
-  // ...
+	// ...
 }
 ```
 
@@ -267,7 +260,7 @@ export default async function Page({ params, searchParams }) {
 
 ```tsx
 // 캐싱이 필요한 fetch에 명시적 설정 추가
-const data = await fetch(url, { cache: 'force-cache' });
+const data = await fetch(url, { cache: "force-cache" });
 ```
 
 ## 4단계: 타입 업데이트
@@ -275,12 +268,12 @@ const data = await fetch(url, { cache: 'force-cache' });
 ```tsx
 // Before
 type PageProps = {
-  params: { slug: string };
+	params: { slug: string };
 };
 
 // After
 type PageProps = {
-  params: Promise<{ slug: string }>;
+	params: Promise<{ slug: string }>;
 };
 ```
 

@@ -29,16 +29,16 @@ blog9yu-content/
 # 필수 필드
 title: "포스트 제목"
 short_description: "포스트 요약 (1-2문장)"
-url_slug: "post-url-slug"  # 파일명과 동일해야 함
-released_at: "2025-10-06T00:00:00.000Z"  # ISO 8601 형식
-updated_at: "2025-10-06T00:00:00.000Z"   # ISO 8601 형식
+url_slug: "post-url-slug" # 파일명과 동일해야 함
+released_at: "2025-10-06T00:00:00.000Z" # ISO 8601 형식
+updated_at: "2025-10-06T00:00:00.000Z" # ISO 8601 형식
 is_private: false
-tags: ["React", "TypeScript", "Next.js"]  # 최소 1개
+tags: ["React", "TypeScript", "Next.js"] # 최소 1개
 
 # 선택 필드
-thumbnail: "./images/cover.png"     # 상대 경로 (포스트 폴더 기준)
+thumbnail: "./images/cover.png" # 상대 경로 (포스트 폴더 기준)
 series: "시리즈명"
-index: 1  # 시리즈 내 순서
+index: 1 # 시리즈 내 순서
 ---
 ```
 
@@ -62,12 +62,15 @@ index: 1  # 시리즈 내 순서
 
 - 이미지는 각 포스트 폴더 내 `images/` 하위 폴더에 저장
 - **상대 경로** 사용 권장
+
   ```yaml
   # Frontmatter
   thumbnail: "./images/cover.png"
   ```
+
   ```markdown
   # MDX 본문
+
   ![설명](./images/screenshot.png)
   ```
 
@@ -79,6 +82,7 @@ index: 1  # 시리즈 내 순서
 ## 검증
 
 모든 포스트는 빌드 타임에 Zod 스키마로 검증됩니다.
+
 - Frontmatter 필수 필드 누락 시 빌드 실패
 - url_slug 불일치 시 경고
 - 시리즈 index 중복 시 에러
