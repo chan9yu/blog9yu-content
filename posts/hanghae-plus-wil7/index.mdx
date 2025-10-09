@@ -1,0 +1,218 @@
+---
+title: "항해 플러스 프론트엔드 6기 7주차, Chapter 3-1. 프런트엔드 테스트 코드 (1)"
+short_description: "7주차 과제는 테스트 코드 작성입니다! 일정 관리 앱에 대한 테스트 코드를 작성하는 과제였는데, 처음 테스트 코드를 접하는 저에게는 정말 힘든 과제였습니다. 테스트 코드를 처음 써보는 입장에서 정말 많은 시행착오가 있었습니다. 공식 문서를 읽으면서 하나하나 테스트 코드"
+url_slug: "hanghae-plus-wil7"
+released_at: "2025-08-24T00:00:00.000Z"
+updated_at: "2025-08-24T00:00:00.000Z"
+is_private: false
+tags: ["WIL", "항해 플러스 프론트엔드 6기", "항해99"]
+thumbnail: "https://velog.velcdn.com/images/chan9yu/post/de99f20f-ceba-46ce-9f43-5951091c9b69/image.png"
+series: "항해 플러스 프론트엔드 6기"
+index: 6
+---
+
+> **이전 블로그 링크:** [https://velog.io/@chan9yu/hanghae-plus-wil7](https://velog.io/@chan9yu/hanghae-plus-wil7)
+
+<p center>
+	<image src="https://velog.velcdn.com/images/chan9yu/post/4bed9601-4ff8-497d-8c60-7a5cd013cebb/image.png" />
+</p>
+
+~~(모르겠어... 테스트 코드 하나도 모르겠어..!!)~~
+
+# 7주차 시작하기
+
+Chapter 3 테스트 코드의 7주차가 시작되었습니다. 지난주 연차의 여유로움은 끝나고 다시 일상으로 돌아왔지만, 그래도 이번 주는 적당히 바쁘지 않아서 과제에 집중할 수 있었어요.
+
+<p center>
+	<image src="https://velog.velcdn.com/images/chan9yu/post/5d356bb6-2124-4586-82c2-01113a3a99ea/image.png" />
+</p>
+
+하지만... 목요일 또 날밤을 새버리고..
+
+<p center>
+	<image src="https://velog.velcdn.com/images/chan9yu/post/b3c67360-1555-4472-aeaf-07d4f184240e/image.png" />
+</p>
+
+출근해버렸따... ㅇ<-<
+
+<p center>
+	<image src="https://velog.velcdn.com/images/chan9yu/post/745ebd88-80a9-4e14-8f06-d8c85dba80d0/image.png" />
+</p>
+
+> 그냥 포기하고 목요일은 밤새는 날로 하자...
+
+# 7주차 과제
+
+7주차 과제는 **테스트 코드 작성**입니다!
+
+이번 과제는 난이도를 선택할 수 있었는데
+
+- **Easy**: 테스트 처음 접하는 분들을 위한 과제 (하지만 합격 불가능)
+- **Medium**: Easy + 추가 통합 테스트 (Best 불가능)
+- **Hard**: Medium과 동일하지만 설정을 직접 구성 (Best 가능)
+
+저는 **Medium 난이도**를 선택했습니다. 테스트 코드를 제대로 써본 적이 없어서 설정부터 다 직접 하기엔 무리라고 판단했거든요... (사실 Hard 찍먹하다가 배탈 나서 Medium으로 도망갔습니다 ㅠㅠ)
+
+<p center>
+	<image src="https://velog.velcdn.com/images/chan9yu/post/a40f64b8-482d-40d6-ab01-2ef8197cc776/image.png" />
+</p>
+
+**과제 목표**: 총 11개 파일, 115개의 단위 테스트를 작성하고 통과시키기
+
+일정 관리 앱에 대한 테스트 코드를 작성하는 과제였는데, 처음 테스트 코드를 접하는 저에게는 정말 힘든 과제였습니다.
+
+## 어떻게 구현했을까?
+
+테스트 코드를 처음 써보는 입장에서 정말 많은 시행착오가 있었습니다. 공식 문서를 읽으면서 하나하나 테스트 코드를 작성해나갔습니다.
+
+### React Testing Library 학습 과정
+
+처음 접한 `React Testing Library`의 핵심 개념들을 배우는 것부터 시작했습니다
+
+- **getBy**: 요소가 없으면 에러 (즉시 찾아야 하는 요소)
+- **queryBy**: 요소가 없어도 null 반환 (있을 수도 없을 수도 있는 요소)
+- **findBy**: 비동기적으로 요소를 찾음 (서버 응답 후 나타나는 요소)
+
+```typescript
+// 예시: 다양한 selector 활용법
+const titleInput = screen.getByLabelText("제목");
+const submitButton = screen.getByRole("button", { name: "일정 추가" });
+const errorMessage = screen.queryByText("필수 필드를 입력해주세요");
+const successToast = await screen.findByText("일정이 추가되었습니다");
+```
+
+### MSW를 통한 API 모킹
+
+서버 요청을 가로채서 테스트하는 MSW (Mock Service Worker) 사용법도 배웠습니다
+
+```typescript
+export const setupMockHandlerCreation = (initEvents = [] as Event[]) => {
+	const mockEvents: Event[] = [...initEvents];
+
+	server.use(
+		http.get("/api/events", () => {
+			return HttpResponse.json({ events: mockEvents });
+		}),
+		http.post("/api/events", async ({ request }) => {
+			const newEvent = (await request.json()) as Event;
+			newEvent.id = String(mockEvents.length + 1);
+			mockEvents.push(newEvent);
+			return HttpResponse.json(newEvent, { status: 201 });
+		})
+	);
+};
+```
+
+각 테스트마다 독립적인 환경을 만들어 병렬 실행 시에도 안정적인 테스트가 가능하게 했습니다.
+
+### 시간 의존적 테스트 안정화
+
+테스트가 실행 시점에 따라 다른 결과를 내는 것을 방지하기 위해 고정된 시간을 설정했습니다
+
+```typescript
+beforeEach(() => {
+	expect.hasAssertions(); // 모든 테스트가 assertion을 가지도록 강제
+	vi.setSystemTime(new Date("2025-10-01")); // 고정 시간 설정
+	resetEvents();
+});
+```
+
+`vi.setSystemTime()`을 사용하면 시간에 의존하는 코드(`new Date()`, 날짜 계산 로직 등)를 일관되게 테스트할 수 있어요. 실행 시점마다 결과가 달라지는 것을 막아줍니다!
+
+### 빈 껍데기 테스트 방지
+
+`expect.hasAssertions()`도 중요한 설정 중 하나였습니다
+
+```typescript
+test("콜백이 실제로 호출되는지 확인", () => {
+	expect.hasAssertions(); // 반드시 expect가 실행되어야 함
+
+	onEventCreate((data) => {
+		expect(data).toBeTruthy(); // 이 검증이 실행되지 않으면 테스트 실패
+	});
+
+	// 콜백이 호출되지 않으면 테스트 실패
+});
+```
+
+조건문이나 비동기 코드 때문에 검증문(`expect`)이 실행되지 않아도 테스트가 통과하는 "빈 껍데기 테스트" 문제를 방지해줍니다.
+
+### 컴포넌트 분리 작업
+
+테스트 작성과 함께 거대한 App 컴포넌트를 적절한 단위로 분리하는 작업도 진행했습니다
+
+- **EventForm**: 일정 생성/수정 폼
+- **EventList**: 일정 목록 표시
+- **Calendar**: 달력 뷰
+- **각종 hooks**: useEventOperations, useSearch 등
+
+테스트가 깨지지 않는 선에서 조금씩 컴포넌트를 분리해나가는 게 핵심이었어요.
+
+## 그래서 결과는..?
+
+<p center>
+	<img src="https://velog.velcdn.com/images/chan9yu/post/781c9197-266b-4b3f-a8bf-b706c57b77b4/image.png" />
+</p>
+
+목표했던 **총 115개의 테스트를 모두 통과**시킬 수 있었습니다!
+
+- **기본과제**: 11개 파일, 115개 단위 테스트 작성 및 통과
+- **심화과제**: App 컴포넌트를 적절한 단위로 분리하고 추가 테스트 5개 이상 작성
+
+목요일 밤을 새워가며 마지막까지 테스트를 완성했는데, 정말 다행이네요 ㅠㅠ
+
+# 7주차 KPT 회고
+
+## Keep
+
+### 테스트 코드 작성의 전체적인 흐름 이해
+
+그동안 기능이 잘 돌아가는지만 보던 것에서 벗어나서, 실제로 **사용자가 쓰는 관점**에서 컴포넌트가 제대로 동작하는지 확인하는 방법을 배웠습니다.
+
+특히 "컴포넌트가 렌더링되는가" 같은 기본 테스트부터 복잡한 사용자 시나리오까지 다양하게 작성해보면서 테스트의 범위와 깊이에 대해 고민할 수 있었습니다.
+
+## Problem
+
+### 테스트 시나리오 설계의 어려움
+
+아직 **어떤 테스트를 작성해야 하는지**, **어느 정도 선에서 테스트를 작성하는 게 적절한지** 감을 잘 잡지 못했습니다.
+
+"컴포넌트가 렌더링되는가" 같은 기본적인 테스트가 실제로 의미가 있는 건지, 아니면 좀 더 비즈니스 로직에 집중해야 하는 건지 고민이 많았던 것 같습니다.
+
+## Try
+
+### 테스트 커버리지와 품질의 균형점 찾기
+
+단순히 테스트 개수를 늘리는 것보다는 **진짜 중요한 비즈니스 로직**에 집중하는 테스트를 작성하고 싶습니다.
+
+복잡한 상태 관리가 있는 컴포넌트를 어떻게 테스트할지, E2E 테스트와 단위 테스트를 어떤 비율로 써야 할지도 더 공부해보고 싶습니다.
+
+### TDD(Test Driven Development) 방식 시도
+
+이번에는 기존 코드에 테스트를 추가하는 방식이었는데, 다음에는 테스트를 먼저 작성하고 기능을 구현하는 TDD 방식을 시도해보고 싶습니다. (마침 다음 주차 과제가 TDD라서 해볼 수 있을 것 같네요!)
+
+### 실무에서의 테스트 전략 고민
+
+실제 업무에서 테스트 코드를 어떻게 도입하고 활용할지에 대한 전략을 세워보고 싶습니다. 팀원들과 함께 테스트 코드에 대해 공유하고, 점진적으로 도입하는 방법을 고민해보려고 합니다.
+
+# 마무리
+
+이번 7주차는 테스트 코드라는 생소한 영역에 발을 들여놓으면서 많은 어려움도 있었지만, 그만큼 얻어간 점도 많은 것 같습니다.
+
+단순히 기능이 돌아가는지 확인하는 것을 넘어서서, 실제 사용자가 어떻게 상호작용하는지를 고려하면서 코드를 작성했던 부분이 재미있었습니다.
+
+어렵겠지만 앞으로 실무에서도 기회가 되면 테스트 코드를 적극 활용해서 더 안정적이고 품질 높은 코드를 작성하고 싶은 마음이 생긴 것 같습니다.
+
+---
+
+<p center>
+	<img src="https://velog.velcdn.com/images/chan9yu/post/36974687-cd65-446b-8c01-91a44b108c2d/image.png" />
+</p>
+
+싸이버렉카 둘...
+
+<p center>
+	<img src="https://velog.velcdn.com/images/chan9yu/post/5db6fda1-6807-43ae-8ffc-99858ae03091/image.png" />
+</p>
+
+(ㅋㅋㅋㅋㅋㅋㅋㅋㅋㅋㅋㅋㅋㅋㅋ)

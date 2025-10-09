@@ -1,0 +1,370 @@
+---
+title: "항해 플러스 프론트엔드 6기 3주차, Chapter 1-3. React, Beyond the Basics"
+short_description: "이번에는 리액트 내부에 있는 Hook을 구현하는게 메인 과제입니다! useMemo, useCallback 같은 기본 Hook과 직접 상태관리 Hook을 만들면서 많이 배워갈 수 있을 거 같아요 이번 주차에서는 리액트의 핵심 Hook들을 직접 구현해보면서 내부 동작 원리"
+url_slug: "hanghae-plus-wil3"
+released_at: "2025-07-28T00:00:00.000Z"
+updated_at: "2025-07-28T00:00:00.000Z"
+is_private: false
+tags: ["WIL", "항해 플러스 프론트엔드 6기", "항해99"]
+thumbnail: "https://velog.velcdn.com/images/chan9yu/post/64ce751a-9ab9-4c5e-9890-595a0f34123f/image.png"
+series: "항해 플러스 프론트엔드 6기"
+index: 3
+---
+
+> **이전 블로그 링크:** [https://velog.io/@chan9yu/hanghae-plus-wil3](https://velog.io/@chan9yu/hanghae-plus-wil3)
+
+<p center>
+	<img
+		src="https://velog.velcdn.com/images/chan9yu/post/2374b55b-5a56-4ccc-948e-0c80c267ae8e/image.png"
+		width="400px;"
+	/>
+</p>
+
+~~(제발 외근 그만 좀 보내주세요 제발요)~~
+
+# 3주차 시작하기
+
+벌써 **JS & React 딥다이브**의 마지막 주차인 3주차가 왔습니다!
+
+시간이 정말 빠른 것 같아요. 시작한 지 엊그제 같은데 벌써 하나의 콘텐츠가 끝나버리다니.. 매주차 그랬지만 회사가 너무 바빠서 과제할 시간이 없는 게 너무 아쉬워요 ㅠㅠ
+
+도대체 왜 프론트엔드 개발자인데 외근을 그렇게 가는지... 외근만 갔다 오면 너무 힘드네요
+
+<p center>
+	<img
+		src="https://velog.velcdn.com/images/chan9yu/post/f55db3cd-b269-410d-9c9f-f6b73702ff6a/image.png"
+		width="400px;"
+	/>
+</p>
+
+덕분에 늦잠 자서 반차까지 쓰는 참사가 일어나버렸습니다 ^^ 그래도 틈틈히 짬 내서 과제를 진행해서 무사히 마무리할 수 있게 되었습니다...
+
+> 돈은 벌어야지... 😩
+
+# 3주차 과제
+
+**JS & React 딥다이브**의 마지막 과제는 무엇일까요?
+
+<p center>
+	<img src="https://velog.velcdn.com/images/chan9yu/post/e670fb79-6c38-4c40-9092-17de309410cc/image.png" width="90%" />
+</p>
+
+이번에는 리액트 내부에 있는 **Hook**을 구현하는 게 메인 과제입니다! **useMemo**, **useCallback** 같은 기본 Hook과 직접 상태관리 Hook을 만들면서 많이 배워갈 수 있을 것 같아요.
+
+## 어떻게 구현했을까?
+
+이번 주차에서는 리액트의 핵심 Hook들을 직접 구현해보면서 내부 동작 원리를 깊이 이해할 수 있었어요.
+
+### shallowEquals - 얕은 비교
+
+먼저 Hook들을 구현하기 전에, 가장 기본이 되는 `shallowEquals` 함수부터 구현했습니다.
+
+**React는 왜 얕은 비교를 사용할까요?**
+
+실제 React를 사용하다 보면 useState나 useMemo에서 객체나 배열을 업데이트할 때 스프레드 연산자(...)나 Object.assign()을 사용하라고 권장하고 있어요. 그 이유가 무엇일까요?
+
+**깊은 비교 vs 얕은 비교 (성능 측면)**
+
+깊은 비교는 객체의 모든 중첩 레벨을 재귀적으로 탐색해야 합니다.
+
+```javascript
+const obj1 = { a: 1, b: { c: 2, d: [3, 4, { e: 5 }] } };
+const obj2 = { a: 1, b: { c: 2, d: [3, 4, { e: 5 }] } };
+```
+
+이 두 객체가 같은지 깊은 비교로 확인하려면 모든 키와 값, 그리고 그 안의 배열과 객체까지 끝까지 재귀적으로 비교해야 합니다.
+
+- 깊은 비교: 시간복잡도 O(n^k) (n: 프로퍼티 개수, k: 중첩 레벨)
+- 얕은 비교: 시간복잡도 O(n) (n: 최상위 키 개수)
+
+React는 상태(state)나 props가 변경되었는지 빠르게 감지해야 불필요한 리렌더링을 막고 최적의 성능을 유지할 수 있어요. 만약 깊은 비교를 사용한다면 컴포넌트가 많아질수록, 상태가 복잡해질수록 앱 전체의 성능이 크게 저하될 수 있습니다.
+
+그래서 React는 불변성(immutability) 패턴을 권장하고, 얕은 비교만으로도 변경 여부를 빠르게 판단할 수 있도록 설계되어 있어요.
+
+**shallowEquals 구현 과정**
+
+이제 얕은 비교가 왜 필요한지 알았으니, 실제로 `shallowEquals` 함수를 구현해봅시다.
+
+```typescript
+export const shallowEquals = (a: unknown, b: unknown) => {
+	if (Object.is(a, b)) return true;
+	if (typeof a !== "object" || typeof b !== "object" || a === null || b === null) return false;
+
+	const isArrayA = Array.isArray(a);
+	const isArrayB = Array.isArray(b);
+	if (isArrayA !== isArrayB) return false;
+
+	// 둘 다 배열이면 배열 비교
+	if (isArrayA && isArrayB) {
+		if (a.length !== b.length) return false;
+		for (let i = 0; i < a.length; i++) {
+			if (!Object.is(a[i], b[i])) return false;
+		}
+		return true;
+	}
+
+	// 둘 다 객체면 객체 비교
+	const aObj = a as Record<string, unknown>;
+	const bObj = b as Record<string, unknown>;
+	const aKeys = Object.keys(aObj);
+	const bKeys = Object.keys(bObj);
+
+	if (aKeys.length !== bKeys.length) return false;
+	for (const key of aKeys) {
+		if (!(key in bObj)) return false;
+		if (!Object.is(aObj[key], bObj[key])) return false;
+	}
+	return true;
+};
+```
+
+테스트는 통과했지만, 코드를 다시 보니 몇 가지 문제가 보이는 것 같습니다.
+
+- 하나의 함수에 너무 많은 로직이 집중되어 있음
+- 가독성이 떨어져서 다른 사람이 이해하기 어려워 보임
+- 각 부분의 역할이 명확하게 분리되지 않음
+
+헬퍼 함수로 역할 분리를 하여 리팩토링을 진행해볼 수 있을 것 같아요.
+
+```javascript
+const isArray = (value: unknown) => Array.isArray(value);
+const isObject = (value: unknown) => typeof value === 'object' && value !== null;
+const compareArrays = (a: unknown[], b: unknown[]) =>
+  a.length === b.length && a.every((item, index) => Object.is(item, b[index]));
+const compareObjects = (a: object, b: object) => {
+  const keysA = Object.keys(a);
+  const keysB = Object.keys(b);
+  return (
+    keysA.length === keysB.length && keysA.every((key) => key in b && Object.is(a[key], b[key]))
+  );
+};
+
+export const shallowEquals = (a: unknown, b: unknown) => {
+  if (Object.is(a, b)) return true;
+  if (!isObject(a) || !isObject(b)) return false;
+  if (isArray(a) !== isArray(b)) return false;
+  if (isArray(a) && isArray(b)) return compareArrays(a, b);
+  return compareObjects(a, b);
+};
+```
+
+함수 분리를 통해 가독성과 간결함이 높아졌고, 함수의 결합도가 느슨해졌어요. 지금도 좋지만 여기서 선언적으로 표현할 수 있게 리팩토링을 진행해봤습니다.
+
+```typescript
+// ... 헬퍼함수들
+
+type Condition<T> = (param: T) => boolean;
+type Handler<T, R> = (param: T) => R;
+type ConditionHandlerPair<T, R> = [condition: Condition<T>, handler: Handler<T, R>];
+
+// dispatchWithCondition 함수 추가구현
+export function dispatchWithCondition<T, R>(...args: [...ConditionHandlerPair<T, R>[], Handler<T, R>]) {
+	const pairs = args.slice(0, -1) as ConditionHandlerPair<T, R>[];
+	const defaultHandler = args[args.length - 1] as Handler<T, R>;
+
+	return (param: T) => {
+		for (const [condition, handler] of pairs) {
+			if (condition(param)) {
+				return handler(param);
+			}
+		}
+
+		return defaultHandler(param);
+	};
+}
+
+export const shallowEquals = (a: unknown, b: unknown) => {
+	return dispatchWithCondition<[typeof a, typeof b], boolean>(
+		// 두 값이 정확히 같은지 확인 (참조가 같은 경우)
+		[([a, b]) => Object.is(a, b), () => true],
+		// 둘 다 객체가 아니면 false
+		[([a, b]) => !isObject(a) || !isObject(b), () => false],
+		// 서로 다른 타입을 받을 경우 false
+		[([a, b]) => isArray(a) !== isArray(b), () => false],
+		// 둘 다 배열이면 배열 비교
+		[([a, b]) => isArray(a) && isArray(b), ([a, b]) => compareArrays(a as unknown[], b as unknown[])],
+		// 둘 다 객체면 객체 비교
+		([a, b]) => compareObjects(a as object, b as object)
+	)([a, b]);
+};
+```
+
+이렇게 리팩토링한 결과, 각 조건과 그에 따른 처리가 명확하게 분리되어 코드의 의도를 한눈에 파악할 수 있게 되었어요. 마치 조건문을 읽듯이 자연스럽게 로직을 이해할 수 있는 구조가 되었습니다!
+
+> 🤔 **왜 여기서 원시값 비교를 ===가 아닌 Object.is를 사용했을까요?**
+>
+> `Object.is`는 `===`와 거의 동일하게 동작하지만, `NaN`을 서로 같다고 판단하고 **+0**과 **-0**을 다르게 취급하는 등 약간의 차이가 있습니다.
+> 모든 값의 완전한 동치성을 정확하게 비교해야 하는 상황에서는 이런 특수한 케이스까지 올바르게 처리하기 위해 `Object.is`를 사용하는 것이 더 안전하다고 생각해서 사용했습니다.
+
+### useRef 구현
+
+가장 먼저 구현한 `useRef`는 생각보다 단순했습니다.
+
+```typescript
+export function useRef<T>(initialValue: T) {
+	const [refObject] = useState<RefObject<T>>(() => ({ current: initialValue }));
+	return refObject;
+}
+```
+
+`useState`를 이용해서 참조를 유지하는 객체를 생성하는 방식인데요. 여기서 중요한 건 **lazy initialization**을 사용한 점입니다.
+
+처음에는 그냥 `useState({ current: initialValue })`로 구현했었는데, 이렇게 하면 `initialValue`가 변경될 때마다 새로운 객체가 생성될 수 있다는 문제를 발견했어요. 그래서 함수 형태로 초기값을 전달해서 한 번만 실행되도록 개선했습니다.
+
+### useMemo와 useCallback 구현
+
+```typescript
+export function useMemo<T>(factory: () => T, _deps: DependencyList, _equals = shallowEquals) {
+	// useRef로 메모이제이션 상태 저장
+	const memoRef = useRef<MemoRef<T> | null>(null);
+
+	// 의존성 배열이 없거나, 이전과 다르면 새로 계산
+	if (!memoRef.current || !_equals(memoRef.current.deps, _deps)) {
+		const value = factory();
+		memoRef.current = { deps: _deps, value };
+	}
+
+	return memoRef.current.value;
+}
+
+export function useCallback<T extends AnyFunction>(factory: T, _deps: DependencyList) {
+	return useMemo(() => factory, _deps);
+}
+```
+
+`useMemo`는 `useRef`를 활용해서 이전 값과 의존성을 저장하고, `shallowEquals`로 비교해서 변경된 경우에만 새로 계산하는 방식이에요. `useCallback`은 `useMemo`를 재활용해서 함수를 메모이제이션하는 구조로 구현했습니다.
+
+### 고급 Hook들 구현
+
+**useShallowState - 얕은 비교 기반 상태 관리**
+
+```typescript
+export const useShallowState = <T>(initialValue: T): [T, Dispatch<SetStateAction<T>>] => {
+	const [value, setValue] = useState<T>(initialValue);
+
+	const setShallow = useCallback((newValue: SetStateAction<T>) => {
+		setValue((prev) => {
+			const nextValue = typeof newValue === "function" ? (newValue as (prevValue: T) => T)(prev) : newValue;
+			return shallowEquals(prev, nextValue) ? prev : nextValue;
+		});
+	}, []);
+
+	return [value, setShallow];
+};
+```
+
+**useAutoCallback - 자동 콜백 최적화**
+
+```typescript
+export const useAutoCallback = <T extends AnyFunction>(fn: T) => {
+	const fnRef = useRef(fn);
+	fnRef.current = fn; // 매 렌더링마다 최신 함수로 업데이트
+
+	const autoCallback = useCallback((...args: Parameters<T>) => {
+		return fnRef.current(...args);
+	}, []);
+
+	return autoCallback;
+};
+```
+
+### 상태 관리 시스템 구현
+
+**createStore와 useStore**
+
+```typescript
+export const createStore = <S, A>(reducer: (state: S, action: A) => S, initialState: S) => {
+	const { subscribe, notify } = createObserver();
+	let state = initialState;
+
+	const getState = () => state;
+	const dispatch = (action: A) => {
+		const newState = reducer(state, action);
+		if (!Object.is(newState, state)) {
+			state = newState;
+			notify();
+		}
+	};
+
+	return { getState, dispatch, subscribe };
+};
+
+export const useStore = <T, S = T>(store: Store<T>, selector = defaultSelector<T, S>) => {
+	const shallowSelector = useShallowSelector(selector);
+	const getSnapshot = () => shallowSelector(store.getState());
+	return useSyncExternalStore(store.subscribe, getSnapshot);
+};
+```
+
+`useSyncExternalStore`를 사용해서 외부 스토어와 리액트를 연결하는 방식이 정말 재미있었습니다!
+
+## 그래서 결과는..?
+
+<p center>
+	<img src="https://velog.velcdn.com/images/chan9yu/post/eb1b93f4-9289-4c12-b600-03924ae17474/image.png" />
+</p>
+
+이번에도 기본 과제와 심화 과제까지 모두 통과할 수 있었습니다!
+
+- ✅ **기본과제**: equalities, hooks, HOC 모두 완료
+- ✅ **심화과제**: 고급 hooks, context 개선 모두 완료
+
+<a href="https://chan9yu.github.io/front_6th_chapter1-3/" target="_blank">
+	배포 링크
+</a>
+
+# 3주차 KPT 회고
+
+## Keep
+
+### React 내부 동작 원리 이해
+
+Hook들을 직접 구현해보면서 React가 어떻게 상태를 관리하고 메모이제이션을 하는지 깊이 이해할 수 있었습니다. 특히 `useMemo`와 `useCallback`이 단순히 성능 최적화 도구가 아니라 React의 리렌더링 메커니즘과 밀접한 관련이 있다는 것을 체감할 수 있었어요.
+
+### 선언적 리팩토링 경험
+
+`dispatchWithCondition`을 활용한 리팩토링을 통해 코드의 가독성과 유지보수성을 크게 향상시킬 수 있었어요. 각 조건과 처리가 명확하게 분리되어 코드를 읽는 것만으로도 의도를 파악할 수 있게 되었습니다.
+
+### 메모이제이션의 단점 파악
+
+메모이제이션이 양날의 검이라는 걸 깨달았습니다. 성능 향상과 메모리/비교 오버헤드 사이의 균형을 고려해야 한다는 점을 배웠어요.
+
+## Problem
+
+### 시간 부족의 지속적인 아쉬움
+
+여전히 회사 업무와 외근으로 인해 과제에 충분한 시간을 투자하지 못한 점이 아쉬웠습니다. 더 깊이 있게 공부하고 다양한 최적화 기법들을 시도해보고 싶었는데 시간이 부족했어요.
+
+### 정리 시간 부족
+
+구현은 완료했지만 학습한 내용을 체계적으로 정리하고 문서화할 시간이 부족했습니다. 다른 팀원들처럼 상세한 학습 기록을 남기지 못한 점이 아쉬웠어요.
+
+## Try
+
+### React 고급 패턴 학습
+
+- Fiber 아키텍처
+- Concurrent 모드
+- Suspense
+
+같은 고급 주제들도 시간을 내서 공부해보고 싶어요. 이번 과제를 통해 기본기를 다졌으니 더 심화된 내용도 이해할 수 있을 것 같습니다.
+
+### 체계적인 학습 기록 관리
+
+다음 챕터부터는 구현과 동시에 학습 내용을 체계적으로 정리하는 습관을 기르고 싶어요. GitHub Issues나 블로그를 통해 꾸준히 기록을 남겨보려고 합니다.
+
+# 마무리
+
+1, 2주차에서 배운 Virtual DOM과 컴포넌트 시스템을 바탕으로 3주차에서는 Hook의 내부 동작까지 이해할 수 있어서 정말 의미 있는 시간이었어요.
+
+특히 React가 왜 얕은 비교를 사용하는지, 불변성을 권장하는 이유가 무엇인지를 직접 구현하면서 체감할 수 있었던 점이 가장 큰 수확이었습니다.
+
+벌써 JS & React 딥다이브가 끝났다니 아쉽지만, 이제 다음 챕터에서 또 새로운 걸 배울 생각하니 기대됩니다!
+
+---
+
+<p center>
+	<img src="https://velog.velcdn.com/images/chan9yu/post/0a0154be-48b1-40dc-b01e-d0f3de0808c4/image.png" />
+</p>
+
+(마지막은 준일 코치님의 귀여운 고양이사진 🐱🐱)

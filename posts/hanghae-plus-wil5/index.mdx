@@ -1,0 +1,378 @@
+---
+title: "항해 플러스 프론트엔드 6기 5주차, Chapter 2-2. 디자인 패턴과 함수형 프로그래밍"
+short_description: "5주차 과제는? 지난 주차에 이어서 클린코드를 생각하면서 리팩토링을 진행하는 과제입니다! 엔티티를 기준으로 컴포넌트, 훅, 유틸의 역할을 나누고 비즈니스 로직을 컴포넌트에서 분리하는 내용인데요. 기본 과제는 전역 상태를 쓰지 않고 구조를 정리하고, 심화 과제는 Jota"
+url_slug: "hanghae-plus-wil6"
+released_at: "2025-08-10T00:00:00.000Z"
+updated_at: "2025-08-10T00:00:00.000Z"
+is_private: false
+tags: ["WIL", "항해 플러스 프론트엔드 6기", "항해99"]
+thumbnail: "https://velog.velcdn.com/images/chan9yu/post/a523080f-08ec-4ee6-b3c7-0cbb56627a42/image.png"
+series: "항해 플러스 프론트엔드 6기"
+index: 5
+---
+
+> **이전 블로그 링크:** [https://velog.io/@chan9yu/hanghae-plus-wil5](https://velog.io/@chan9yu/hanghae-plus-wil5)
+
+<p center>
+	<img src="https://velog.velcdn.com/images/chan9yu/post/78f347aa-3e26-4704-a756-a306c81a436c/image.jpeg" />
+<p/>
+
+~~(또... 또..! 외근에 끌려가는 나... ㅠㅠ)~~
+
+# 5주차 시작하기
+
+안녕하세요! 드디어 5주차가 시작했네요. 어김없이 주차의 시작은 불타오르는 의지력으로 BP를 받겠다고 다짐하면서 시작하는데요...
+
+<p center>
+	<img src="https://velog.velcdn.com/images/chan9yu/post/b256d959-1b63-4301-91c7-58bc73cb27d5/image.png" width="400px" />
+<p/>
+
+역시나 월요일부터 외근을 가버리네요~ ~~미쳐 진짜~~ 심지어 외근지에서 야근까지 해버리고 화요일에도 외근 가버렸습니다 ㅠㅠ
+
+<p center>
+	<img src="https://velog.velcdn.com/images/chan9yu/post/145ef62b-2a6e-46ff-86bc-df800580410d/image.png" width="500px" />
+<p/>
+
+그래도 많은 응원 덕분에 퇴근에 성공할 수 있었습니다(?)
+
+신경써주는 팀분들 너무 감사해요 ㅠㅠ 힘들어도 끝까지 갈 수 있게 해주시는 분들 🥲
+
+월요일 아니어도 이번 주차는 시간이 너무 부족해서 출퇴근 지하철에서도 맥북을 열어서 과제를 진행했고 점심시간도 밥 안 먹고 시간 내서 했던 것 같네요... 😇
+
+<p center>
+	<img src="https://velog.velcdn.com/images/chan9yu/post/d51f25fc-5687-4b33-b544-9f029fd3d8e9/image.png" width="350px" />
+<p/>
+
+> ...월요일부터 스크럼 내용 실화?
+
+# 5주차 과제
+
+5주차 과제는?
+
+<p center>
+	<img src="https://velog.velcdn.com/images/chan9yu/post/da674853-8888-4b39-8d3f-0bff1625df29/image.png" />
+<p/>
+
+지난 주차에 이어서 클린코드를 생각하면서 리팩토링을 진행하는 과제입니다!
+
+엔티티를 기준으로 컴포넌트, 훅, 유틸의 역할을 나누고 비즈니스 로직을 컴포넌트에서 분리하는 내용인데요. 기본 과제는 전역 상태를 쓰지 않고 구조를 정리하고, 심화 과제는 Jotai 같은 전역상태 관리 라이브러리를 활용해서 props drilling을 제거해 더 깔끔한 구조로 개선하는 내용입니다!
+
+## 어떻게 구현했을까?
+
+이번 과제는 지난주 과제에서 아쉬웠던 점을 바탕으로, 먼저 리팩토링 계획을 세운 뒤 순차적으로 문제를 해결하는 방식으로 진행했습니다!
+
+### Step 1. 모놀리식 분해 시작
+
+처음 주어진 코드는 거대한 App.tsx 파일에 400줄이 넘는 모든 로직이 집중된 상태였어요.
+
+```typescript
+// 기존 App.tsx - 모든 로직이 한 곳에
+export function App() {
+  // 상품, 장바구니, 쿠폰, 검색, 알림, 관리자 모드...
+  // 모든 상태와 로직이 여기에 집중!
+  const [products, setProducts] = useState(...);
+  const [cart, setCart] = useState(...);
+  const [coupons, setCoupons] = useState(...);
+  // ... 400줄의 거대한 컴포넌트
+}
+```
+
+이 거대한 덩어리를 다음과 같이 분해했습니다
+
+- **페이지 분리**: AdminPage, CartPage로 UI 관심사 분리
+- **컴포넌트 추출**: Header, 각종 UI 컴포넌트들 분리
+- **로직 분리**: 비즈니스 로직을 훅과 유틸 함수로 분리
+
+### Step 2. 도메인 중심 아키텍처 구축
+
+가장 중요한 변화는 **엔티티를 기준으로 한 도메인 분리**였습니다.
+
+```
+src/basic/
+├── domains/                    # 비즈니스 도메인 (기능별)
+│   ├── cart/                   # 장바구니 도메인
+│   │   ├── components/         # Cart 전용 컴포넌트
+│   │   ├── hooks/              # Cart 전용 훅
+│   │   ├── services/           # Cart 비즈니스 로직
+│   │   ├── types/              # Cart 타입
+│   │   └── utils/              # Cart 계산 함수
+│   ├── coupon/                 # 쿠폰 도메인
+│   └── product/                # 상품 도메인
+├── shared/                     # 공통 기능 (타입별)
+│   ├── components/ui/          # Button, Input 등
+│   ├── hooks/                  # 범용 훅
+│   └── utils/                  # 공통 유틸리티
+└── app/                        # 애플리케이션 레이어
+```
+
+해당 단계에서는 내부 로직은 건들지 않고 이관 작업만 진행했습니다
+
+### Step 3. Props Drilling 문제 발견
+
+컴포넌트를 분리하면서 예상치 못한 문제가 생겼습니다.. Props가 터져버렸어요!
+
+```typescript
+// 컴포넌트 분리 후 Props의 폭증
+<CartPage
+  addToCart={addToCart} // 1
+  applyCoupon={applyCoupon} // 2
+  calculateItemTotal={calculateItemTotal} // 3
+  cart={cart} // 4
+  completeOrder={completeOrder} // 5
+  coupons={coupons} // 6
+  debouncedSearchTerm={debouncedSearchTerm} // 7
+  formatPrice={formatPrice} // 8
+  getRemainingStock={getRemainingStock} // 9
+  products={products} // 10
+  removeFromCart={removeFromCart} // 11
+  selectedCoupon={selectedCoupon} // 12
+  updateQuantity={updateQuantity} // 13
+/>
+```
+
+~~CartPage는 의도치 않게 수많은 props를 받는 슈퍼슈퍼 컴포넌트가 되어버렸습니다~~
+
+이 시점에서 깨달은 점
+
+- **유지보수성 저하**: 새 기능 추가 시 여러 컴포넌트 수정 필요
+- **재사용성 부족**: props 의존성으로 인한 컴포넌트 결합도 증가
+- **가독성 문제**: 어떤 props가 어디서 사용되는지 추적 어려움
+
+### Step 4. 전역 상태 관리 전환
+
+심화 과제에서는 **Jotai**를 도입해 Props Drilling 문제를 해결했습니다.
+
+#### Jotai를 선택한 이유?
+
+```typescript
+// Jotai의 간결함과 직관성
+export const productsAtom = atomWithStorage<ProductWithUI[]>("products", INITIAL_PRODUCTS);
+export const cartAtom = atomWithStorage<CartItem[]>("cart", []);
+export const couponsAtom = atomWithStorage<Coupon[]>("coupons", INITIAL_COUPONS);
+
+// 파생 상태도 자연스럽게 표현 가능
+export const cartTotalAtom = atom((get) => {
+	const cart = get(cartAtom);
+	const selectedCoupon = get(selectedCouponAtom);
+	return calculateCartTotal(cart, selectedCoupon);
+});
+```
+
+Jotai를 선택한 이유는 Redux보다 훨씬 간단하면서도 TypeScript와의 호환성이 뛰어났고, 특히 `atomWithStorage`로 localStorage 동기화가 매우 쉬워 기존에 구현한 `useLocalStorageState`를 완벽하게 대체할 수 있어서였습니다.
+
+#### 도메인별 Store 설계
+
+```typescript
+// domains/cart/store/atoms.ts
+export const cartAtom = atomWithStorage<CartItem[]>("cart", []);
+export const selectedCouponAtom = atom<Coupon | null>(null);
+
+export const cartItemCountAtom = atom((get) => {
+	const cart = get(cartAtom);
+	return cart.reduce((sum, item) => sum + item.quantity, 0);
+});
+
+export const cartTotalAtom = atom((get) => {
+	const cart = get(cartAtom);
+	const selectedCoupon = get(selectedCouponAtom);
+	return calculateCartTotal(cart, selectedCoupon);
+});
+```
+
+### Step 5. 점진적 Props Drilling 제거
+
+전역 상태 도입 후 컴포넌트들이 극적으로 단순해졌습니다.
+
+```typescript
+// Before: 13개의 props
+<CartPage
+  addToCart={addToCart}
+  applyCoupon={applyCoupon}
+  // ... 11개 더
+/>
+
+// After: 0개의 props!
+<CartPage />
+
+// CartPage 내부에서 필요한 상태만 구독
+export function CartPage() {
+  const cart = useAtomValue(cartAtom);
+  const products = useAtomValue(productsAtom);
+  const { addToCart, removeFromCart } = useCartActions();
+
+  return (
+    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+      <ProductList />
+      <CartSummary />
+    </div>
+  );
+}
+```
+
+### Step 6. Hook 아키텍처 정립
+
+전역 상태와 로컬 상태의 경계를 명확히 정했습니다.
+
+#### 전역 상태 Hook
+
+```typescript
+// domains/cart/hooks/useCartAtom.ts
+export const useCartAtom = () => {
+	const [cart, setCart] = useAtom(cartAtom);
+	const cartTotal = useAtomValue(cartTotalAtom);
+	const itemCount = useAtomValue(cartItemCountAtom);
+
+	return { cart, setCart, cartTotal, itemCount };
+};
+```
+
+#### 로컬 상태 Hook (폼 전용)
+
+```typescript
+// domains/product/hooks/useProductForm.ts
+export const useProductForm = (initialProduct?: Product) => {
+	const [formData, setFormData] = useState({
+		name: initialProduct?.name || "",
+		price: initialProduct?.price || 0,
+		stock: initialProduct?.stock || 0
+	});
+
+	const [errors, setErrors] = useState<Record<string, string>>({});
+
+	return { formData, setFormData, errors, validate };
+};
+```
+
+### Step 7. 구조 최적화와 Barrel Export
+
+#### Barrel Export 패턴 적용
+
+깔끔한 import 경로를 만들기 위해 각 도메인마다 index.ts를 두었습니다.
+
+```typescript
+// domains/cart/index.ts
+export * from "./components";
+export * from "./hooks";
+export * from "./types";
+export * from "./utils";
+
+// 사용 시
+import { CartItem, useCartActions, calculateCartTotal } from "../domains/cart";
+```
+
+#### 순환 의존성 문제와 해결
+
+하지만 배럴파일 사용 중 순환 의존성 문제를 만났는데요.
+
+```typescript
+// domains/cart/index.ts에서
+export * from "./hooks/useCartAtom";
+
+// domains/cart/hooks/useCartAtom.ts에서
+import { useCouponAtom } from "../../coupon"; // 순환 의존성 위험!
+```
+
+이를 해결하기 위해 **계층별 의존성 규칙**을 정했습니다:
+
+- `domains/` → `shared/` → `app/` 순으로만 의존
+- 도메인끼리는 직접 의존 금지
+
+## 그래서 결과는..?
+
+<p center>
+	<img src="https://velog.velcdn.com/images/chan9yu/post/90e4febb-fe69-4083-8fee-38e2af64b391/image.png" />
+<p/>
+
+진짜 이번 주는 너무 바쁘고 과제할 시간이 없어서 포기할 뻔했지만... 목요일에 밤새고 금요일에 시간 투자해서 겨우 기본과제와 심화과제 모두 완료할 수 있었습니다!!!!
+
+- ✅ **기본과제**: SRP 적용, 도메인 분리, 순수함수 분리 완료
+- ✅ **심화과제**: Jotai 도입으로 Props drilling 완전 제거
+
+<a href="https://chan9yu.github.io/front_6th_chapter2-2/" target="_blank">
+	배포 링크
+</a>
+
+> 리뷰와 별개로 따뜻한 응원 한마디 너무 감사합니다 준일 코치님 😭😭😭
+
+# 5주차 KPT 회고
+
+## Keep
+
+### 도메인 중심 설계
+
+도메인별로 atom과 hook을 분리하니 코드의 응집도가 높아지고, 각 도메인의 로직을 이해하기 쉬워졌습니다. 특히 `domains/cart/`에서 장바구니 관련 모든 것을 찾을 수 있어서 이해 속도가 빨라졌습니다.
+
+### Jotai 도입
+
+`atom`과 `atomWithStorage`의 간결함과 직관성이 정말 좋았습니다. Redux보다 훨씬 간단하면서도 TypeScript와의 호환성이 뛰어났고, 파생 상태를 `atom((get) => ...)` 형태로 자연스럽게 표현할 수 있어서 코드가 매우 깔끔해졌습니다.
+
+### 계층별 의존성 규칙 정립
+
+배럴파일 사용 중 순환 의존성 문제를 겪으면서, `domains/` → `shared/` → `app/` 순으로만 의존하는 규칙을 정한 게 정말 도움이 되었습니다. 나중에 모듈화할 때도 이 규칙을 활용하면 좋을 것 같습니다.
+
+### 단계적 리팩토링 접근
+
+이번에는 처음부터 계획을 세우고 단계를 나누어 진행한 게 정말 좋았습니다. 각 단계마다 명확한 목표가 있어서 진행 방향을 잃지 않았습니다.
+
+## Problem
+
+### 전역 상태와 로컬 상태의 경계 설정
+
+모든 상태를 전역으로 만들면 오히려 복잡해질 수 있어서, 정말 여러 컴포넌트에서 공유되는 상태만 전역으로 관리했는데요. 이 경계를 정하는 기준이 아직 명확하지 않아서 고민이 되었어요.
+
+### Notification 구조 문제
+
+Notification을 어디에 둘지 정말 고민이 많았습니다. 처음에는 `domains/notification/`으로 두었다가, `shared/`로 옮겼는데, 관련 파일들이 4군데(components, hooks, store, types)로 분산되어서 전체 그림을 파악하기 어려웠습니다.
+
+```
+shared/
+├── components/NotificationList.tsx    # 분산된 파일들
+├── hooks/useNotifications.ts          # 찾기 어려움
+├── store/notificationAtoms.ts
+└── types/notification.ts
+```
+
+## Try
+
+### Public Hook 캡슐화 강화
+
+리뷰에서 받은 피드백대로, 모든 전역 상태 접근을 public hook으로 캡슐화하고 싶습니다. 이렇게 하면 나중에 Jotai를 다른 라이브러리로 바꿀 때도 hook 내부만 변경하면 되니까 유지보수성이 크게 향상될 것 같습니다.
+
+```typescript
+export const useAdminMode = () => {
+	const [isAdmin, setIsAdmin] = useAtom(adminModeAtom); // 내부 구현
+	const toggle = () => setIsAdmin((v) => !v);
+
+	return { isAdmin, setIsAdmin, toggle }; // 인터페이스만 노출
+};
+```
+
+### FSD 아키텍처 적용하기
+
+사실 도메인 기반으로 폴더 구조를 리팩토링하면서 마주했던 문제점은 FSD 폴더 구조로 변경하면 대부분 해결될 것 같아요. 마침 다음 주차의 과제 내용이 FSD로 리팩토링하는 것이니 학습할 예정입니다.
+
+# 마무리
+
+이번 5주차는 정말 많은 걸 배웠어요. 특히 **"좋은 구조란 무엇인가?"**에 대해 깊이 고민할 수 있었던 시간이었습니다.
+
+단순히 코드를 분리하는 것이 아니라, 엔티티를 기준으로 한 도메인 설계, 응집도와 결합도를 고려한 모듈 구성, 전역 상태와 로컬 상태의 적절한 분리 같은 설계 원칙들을 실제로 적용해보면서 그 중요성을 체감할 수 있었습니다.
+
+그리고 Jotai라는 새로운 도구를 배우면서 Props Drilling 문제를 해결하는 다양한 방법을 익힐 수 있었던 점도 좋았습니다.
+
+무엇보다 리뷰를 통해 받은 피드백들이 정말 인상 깊었습니다. 모듈화와 패키징을 고려한 설계, Public API 설계, 라이브러리 교체를 대비한 추상화 같은 실무적인 관점들의 의견을 들을 수 있었습니다.
+
+아직 완벽하지 않지만, 이런 고민들을 통해 더 나은 개발자로 성장하고 있다는 걸 느껴요. 다음 주차도 화이팅💪
+
+---
+
+<p center>
+	<img src="https://velog.velcdn.com/images/chan9yu/post/e50af2e8-b350-42dc-a4f6-a1cdf3aa70e3/image.png" />
+<p/>
+
+🤷 엥 이게 뭐지..?
+
+> <a href="https://www.youtube.com/shorts/lenhxi-DzU0" target="_blank">
+> 	https://www.youtube.com/shorts/lenhxi-DzU0
+> </a>
+
+ㅋㅋㅋㅋㅋㅋㅋㅋㅋㅋㅋㅋㅋㅋㅋㅋㅋㅋㅋㅋㅋㅋㅋㅋㅋ 미치겠네

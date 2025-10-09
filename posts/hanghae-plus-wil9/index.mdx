@@ -1,0 +1,406 @@
+---
+title: "항해 플러스 프론트엔드 6기 9주차, Chapter 4-1. 성능최적화: SSR, SSG, Infra"
+short_description: "8주차 과제는 지난 과제에 이어서 추가 요구사항인 반복 일정 기능을 TDD(테스트 주도 개발) 방식으로 구현하는 것입니다. 이번 과제의 핵심은 7주차와 완전히 반대되는 접근인 거 같아요. 7주차는 기존 코드에 테스트를 추가하는 방식이었다면, 8주차는 테스트를 먼저 작성"
+url_slug: "hanghae-plus-wil9"
+released_at: "2025-09-07T00:00:00.000Z"
+updated_at: "2025-09-07T00:00:00.000Z"
+is_private: false
+tags: ["WIL", "항해 플러스 프론트엔드 6기", "항해99"]
+thumbnail: "https://velog.velcdn.com/images/chan9yu/post/c087cf2f-a27e-456a-9036-050041edecaf/image.png"
+series: "항해 플러스 프론트엔드 6기"
+index: 8
+---
+
+> **이전 블로그 링크:** [https://velog.io/@chan9yu/hanghae-plus-wil9](https://velog.io/@chan9yu/hanghae-plus-wil9)
+
+# 9주차 시작하기
+
+항해의 마지막 단계인 Chapter 4가 시작되었습니다. 지금까지 프론트엔드 개발에만 집중해왔는데, 이번 주차는 **서버사이드 렌더링(SSR)**과 **정적 사이트 생성(SSG)**을 직접 구현하는 과제였습니다.
+
+솔직히 말하면... "Next.js 쓰면 되는 거 아닌가?"라고 생각했었는데, 막상 직접 구현해보니까 그 안에 숨어있는 복잡함이 어마어마한 거 같습니다. 특히 서버와 클라이언트 간의 메모리 격리 문제는... 정말 머리가 아팠습니다.
+
+## 9주차 알아두면 좋은 사전지식
+
+과제를 시작하기 전에 먼저 알아두면 좋은 사전지식들을 정리해보겠습니다!
+
+### 렌더링 방식 4가지 이해하기
+
+#### CSR (Client Side Rendering)
+
+브라우저에서 **JavaScript가 실행**되어 DOM을 만들어내는 방식입니다.
+
+**특징:**
+
+- 초기 HTML은 비어 있고, JS가 로드된 후 화면 생성
+- SPA(Single Page Application)의 기본 방식
+- 초기 로딩은 느리지만 이후 페이지 전환은 빠름
+
+**장점:** 서버 부하 적음, 사용자 상호작용에 최적화
+**단점:** 초기 로딩 지연, SEO에 불리
+
+#### SSR (Server Side Rendering)
+
+서버에서 **완성된 HTML을 만들어 브라우저로 전송**하는 방식입니다.
+
+**특징:**
+
+- 요청 시 서버가 데이터 페칭 후 HTML 생성
+- 브라우저는 완성된 HTML을 바로 렌더링
+- 요청마다 서버가 새로 렌더링 수행
+
+**장점:** 빠른 초기 렌더링, SEO 친화적
+**단점:** 서버 부하 증가, 요청당 처리 시간 필요
+
+#### SSG (Static Site Generation)
+
+빌드 시점에 **정적 HTML 파일을 미리 생성**해두는 방식입니다.
+
+**특징:**
+
+- 배포 전에 모든 페이지를 미리 빌드
+- CDN을 통해 전 세계 어디서든 빠르게 전송 가능
+- 서버 연산 없이 정적 파일만 서빙
+
+**장점:** 최고의 성능, 보안성 높음, 저렴한 호스팅
+**단점:** 동적 콘텐츠 반영 어려움, 빌드 시간 증가
+
+#### ISR (Incremental Static Regeneration)
+
+정적 페이지를 **필요에 따라 재생성**하는 방식으로, SSG의 한계를 보완합니다.
+
+**특징:**
+
+- 초기에는 SSG처럼 정적 페이지 제공
+- 특정 시간 간격으로 페이지를 백그라운드에서 업데이트
+- Next.js 등 일부 프레임워크에서 지원
+
+**장점:** SSG의 성능 + 최신 콘텐츠 유지
+**단점:** 캐싱/갱신 로직 복잡, 프레임워크 의존성
+
+### 유니버셜 렌더링 (Universal Rendering)
+
+서버와 클라이언트에서 동일한 코드를 실행해 화면을 그려내는 방식입니다.
+서버에서 먼저 HTML을 만들어 브라우저로 보내 초기 화면과 SEO를 보장하고, 이후 클라이언트에서 동일한 코드를 실행해 이벤트와 상태 관리 같은 상호작용을 붙입니다. 이 과정을 **하이드레이션(Hydration)**이라고 부릅니다.
+
+**특징:**
+
+- SSR처럼 서버에서 초기 HTML 제공
+- CSR처럼 클라이언트에서 동작 이어받음
+- 서버와 클라이언트 환경 차이를 모두 고려해야 함
+
+**장점:** 빠른 초기 화면 표시, SEO 최적화, CSR 수준의 인터랙션 가능
+**단점:** 구현 복잡성 증가, 서버 부하와 캐싱 전략 필요
+
+### 하이드레이션 (Hydration)
+
+하이드레이션은 서버에서 생성된 정적 HTML을 클라이언트에서 인터랙티브하게 만드는 과정입니다.
+
+**과정:**
+
+1. **서버**: HTML + 초기 데이터 생성
+2. **브라우저**: 정적 HTML 먼저 표시 (빠른 초기 렌더링)
+3. **JavaScript 로드**: 프레임워크 코드 다운로드
+4. **하이드레이션**: DOM에 이벤트 리스너 및 상태 관리 연결
+
+**장점:** 초기 로딩과 인터랙션 성능을 모두 확보
+**단점:** JS 번들이 무겁거나 최적화가 안 되면 하이드레이션 지연 발생
+
+# 9주차 과제
+
+9주차 과제는 **SSR(Server Side Rendering)과 SSG(Static Site Generation) 직접 구현**입니다.
+
+<p center>
+	<image
+		src="https://velog.velcdn.com/images/chan9yu/post/b62caabd-2f41-4ba7-8264-07f245541311/image.png"
+		width="500px"
+	/>
+</p>
+
+1~3주차 때 진행했던 쇼핑몰 애플리케이션을 기반으로 Vanilla JavaScript와 React 두 가지 버전 모두에서 SSR과 SSG를 구현해야 했습니다. 처음에는 "그냥 HTML 만들어서 보내주면 되는 거 아닌가?"라고 생각했는데... 전혀 아니더라구요
+
+**기본과제 (Vanilla SSR & SSG)**
+
+- Express 미들웨어 기반 서버 구현
+- 서버에서 동작하는 Router 구현
+- 서버 데이터 프리페칭 및 상태관리 초기화
+- `window.__INITIAL_DATA__` 스크립트 주입
+- 동적 라우트 SSG (상품 상세 페이지들)
+
+**심화과제 (React SSR & SSG)**
+
+- `renderToString` 서버 렌더링
+- Universal React Router (서버/클라이언트 분기)
+- Hydration 불일치 방지
+- TypeScript SSR 모듈 빌드
+
+특히 이번 과제에서 가장 어려웠던 점은 **각 요청마다 독립적인 메모리 공간을 보장하는 것**이었습니다. E2E 테스트에서 동시에 여러 페이지를 요청할 때 다른 요청의 데이터가 섞이는 현상이 발생해서 정말 머리가 아팠어요...
+
+## 어떻게 구현했을까?
+
+### 서버 요청 간 메모리 격리 문제 해결
+
+가장 큰 도전이었던 부분입니다. 처음에는 단순하게 전역 스토어를 만들어서 사용했는데, E2E 테스트에서 간헐적으로 실패하는 현상이 발생했습니다.
+
+```typescript
+// 문제가 있던 초기 구현
+let globalProductStore = createProductStore(); // 전역 스토어
+
+export async function render(url, query) {
+	// 모든 요청이 같은 스토어를 사용... 큰일!
+	globalProductStore.dispatch(SETUP, data);
+	return renderPage();
+}
+```
+
+문제의 원인을 파악하는 게 정말 어려웠어요. 단일 요청으로 테스트하면 정상 동작하는데, 동시에 여러 요청이 들어오면 간헐적으로 다른 데이터가 섞여서 나오는 거예요 ㅠㅠ
+
+결국 해결책은 **요청별로 독립적인 메모리 공간을 제공하는 것**이었습니다.
+
+#### withUniversal HOF 패턴
+
+withUniversal을 구현해서 하이드레이션을 직접 구현했습니다
+
+```typescript
+export const withUniversal = (options, component) => {
+	return (pageParams) => {
+		if (typeof window === "undefined") {
+			// 서버: 요청별 격리된 데이터 사용
+			return component(pageParams);
+		} else {
+			// 클라이언트: window.__INITIAL_DATA__ 활용
+			const initialData = window.__INITIAL_DATA__;
+			return component({ ...pageParams, data: initialData });
+		}
+	};
+};
+```
+
+#### 메모리 스토리지를 통한 상태 격리
+
+서버사이드에서는 localStorage나 sessionStorage를 지원하지 않기 때문에 memoryStorage라는 새로운 객체를 만들어 사용했습니다
+
+```typescript
+export const createMemoryStorage = (initialData = {}) => {
+	const storage = new Map(Object.entries(initialData));
+
+	return {
+		getItem: (key) => storage.get(key) || null,
+		setItem: (key, value) => storage.set(key, value),
+		removeItem: (key) => storage.delete(key),
+		clear: () => storage.clear()
+	};
+};
+
+// 요청별 독립적인 스토어 생성
+function createProductStore(initialData) {
+	const storage = createMemoryStorage(initialData);
+	return productStoreFactory(storage);
+}
+```
+
+### SSRService 클래스를 통한 체계적인 렌더링
+
+서버 렌더링 로직을 단순한 함수가 아닌 클래스 기반으로 구조화했습니다.
+
+```typescript
+export class SSRService {
+	constructor(routes) {
+		this.routes = routes;
+		this.router = createRouter(routes, "", { initRoutes: false });
+	}
+
+	async render(url, query = {}) {
+		try {
+			// 라우터 초기화
+			this.router.start(url, query);
+
+			// 데이터 프리페칭
+			const data = await this.prefetchData(this.router.target, query);
+
+			// HTML 렌더링
+			const html = this.renderPage(this.router.target, { data, query });
+
+			return { html, head: this.generateHead(), data };
+		} catch (error) {
+			return this.handleError(error);
+		}
+	}
+}
+```
+
+### 라우터 팩토리 패턴으로 환경별 분기
+
+서버와 클라이언트에서 서로 다른 요구사항을 가진 라우터를 팩토리 패턴으로 해결했습니다.
+
+```typescript
+export const createRouter = (routes, baseUrl = "", options = {}) => {
+	const { initRoutes = true } = options;
+
+	if (typeof window === "undefined") {
+		// 서버: URL 시작점과 쿼리를 외부에서 주입받는 방식
+		return new ServerRouter(routes, baseUrl, { initRoutes: false });
+	} else {
+		// 클라이언트: 브라우저 히스토리 기반 자동 초기화
+		return new SPARouter(routes, baseUrl, { initRoutes });
+	}
+};
+```
+
+### MSW 서버 통합으로 개발 환경 최적화
+
+개발 환경에서 백엔드 API 없이도 풀스택 개발이 가능하도록 MSW를 서버사이드에서도 통합했습니다.
+
+```typescript
+// src/mocks/node.js
+import { setupServer } from "msw/node";
+import { handlers } from "./handlers.js";
+
+export const mswServer = setupServer(...handlers);
+
+// server.js
+import { mswServer } from "./src/mocks/node.js";
+
+// MSW 서버 시작
+mswServer.listen({
+	onUnhandledRequest: "bypass"
+});
+```
+
+이를 통해 클라이언트와 서버에서 동일한 모킹 데이터를 사용하여 하이드레이션 불일치를 방지할 수 있었습니다.
+
+### useSyncExternalStore의 서버사이드 안정성
+
+React 18의 `useSyncExternalStore`에서 `getServerSnapshot` 옵션을 추가해 서버사이드 안정성을 확보했습니다.
+
+```typescript
+const useStore = (selector) => {
+	return useSyncExternalStore(
+		store.subscribe,
+		() => selector(store.getState()),
+		() => selector(store.getState()) // getServerSnapshot 추가
+	);
+};
+```
+
+서버에서는 구독 메커니즘이 없기 때문에 정적 스냅샷을 반환해야 한다는 걸 배웠습니다.
+
+### SSGBuilder를 통한 정적 사이트 생성
+
+빌드 타임에 동적 라우트 페이지들을 미리 생성하는 SSGBuilder 클래스를 구현했습니다.
+
+```typescript
+export class SSGBuilder {
+	constructor(template, renderFunction) {
+		this.template = template;
+		this.render = renderFunction;
+	}
+
+	async generateStaticSite() {
+		const pages = await this.getPages();
+
+		for (const page of pages) {
+			const rendered = await this.render(page.url);
+			const html = this.template.replace(/* ... */);
+			await this.saveHtmlFile(page.filePath, html);
+		}
+	}
+}
+```
+
+현재는 순차 처리 방식을 사용하고 있지만, 대용량 페이지를 처리해야 하는 경우를 고려하면 병렬 처리로 확장 가능한 구조로 변경해야겠다고 생각이 드네요...
+
+## 그래서 결과는..?
+
+<p center>
+	<img src="https://velog.velcdn.com/images/chan9yu/post/14262055-2fa7-4c00-b024-00d22e1e754e/image.png" />
+</p>
+
+열심히 했지만 결국 심화과제에서 e2e 테스트 통과를 못해서 아쉽게 통과하지 못했습니다 ㅠㅠㅠ
+
+- ✅ **기본과제**: Vanilla JavaScript로 Express SSR/SSG 서버 구현
+- ❌ **심화과제**: React renderToString을 활용한 Universal JavaScript 구현
+
+구현은 다 했지만 계속 테스트 통과를 못해 아쉬운 마음에 계속 진행했는데요...
+
+<p center>
+	<img src="https://velog.velcdn.com/images/chan9yu/post/f2e12236-f4ee-474e-b5d3-db7b9cfcee64/image.png" />
+</p>
+
+목요일에 밤샌 것도 정말 아쉬워서 금요일까지 밤을 새버렸지만 재정신이 아니었는지 잘 안 되더라구요 ㅠㅠ
+
+<p center>
+	<img src="https://velog.velcdn.com/images/chan9yu/post/c4587d32-e76a-4972-bf71-163128079d23/image.png" />
+</p>
+
+> ㅠㅠㅠ 기다려주셔서 감사합니다 오프코치님 🥹🥹
+
+# 9주차 KPT 회고
+
+## Keep
+
+### Universal JavaScript의 이해
+
+기존에는 SSR을 단순히 "서버에서 HTML을 만드는 것"으로 이해했지만, 실제로는 같은 코드가 서버와 클라이언트에서 모두 실행되어야 한다는 Universal JavaScript의 복잡함을 깨달았습니다.
+
+특히 `typeof window` 분기처리만으로는 부족하고, 각 환경에 맞는 적절한 추상화 계층이 필요하다는 걸 이번에 배운 거 같습니다.
+
+### 요청별 메모리 격리
+
+서버에서 전역 상태를 공유하면서 발생하는 데이터 오염 문제를 직접 경험하고 해결하면서, 서버사이드 개발에서 메모리 관리가 얼마나 중요한지 깨달았습니다.
+
+이번 경험을 통해 "왜 Next.js가 복잡한 구조를 가지고 있는지" 이해할 수 있었어요. 단순해 보이는 SSR 뒤에 수많은 고민과 해결책이 숨어있었습니다.
+
+### MSW 서버 통합으로 얻은 개발 경험
+
+백엔드 API 없이도 풀스택 개발을 할 수 있는 환경을 구축한 경험이 좋았습니다. 클라이언트와 서버에서 동일한 데이터를 사용해서 하이드레이션 불일치를 방지할 수 있다는 것도 알 수 있었습니다
+
+## Problem
+
+### 복잡한 아키텍처 설계의 어려움
+
+SSR/SSG를 구현하면서 수많은 설계 결정을 내려야 했는데, 각각의 트레이드오프를 고려하는 게 쉽지 않았습니다.
+
+- 라우터 팩토리 패턴이 정말 최선일까?
+- SSRService 클래스 구조가 확장성 면에서 적절할까?
+- 메모리 격리 방식이 프로덕션에서도 안전할까?
+
+이런 고민들에 대한 명확한 답을 찾기 어려웠어요.
+
+### TypeScript 타입 안전성 부족
+
+특히 React 패키지에서 `any` 타입을 많이 사용하게 되었는데, 서버-클라이언트 간 데이터 전달 과정에서 타입 안전성을 보장하기 어려웠습니다.
+
+```typescript
+// 이런 부분들이 아쉬웠어요
+declare global {
+	interface Window {
+		__INITIAL_DATA__?: any;
+	}
+}
+```
+
+## Try
+
+### 실무에서의 SSR 도입 전략 수립
+
+이번 과제를 통해 SSR의 복잡성을 체감했기 때문에, 실무에서 어떻게 점진적으로 도입할 수 있을지 고민해보고 싶습니다.
+
+- 어떤 페이지부터 SSR을 적용할 것인가?
+- 기존 CSR 프로젝트를 어떻게 마이그레이션할 것인가?
+- 팀원들과 어떻게 SSR 지식을 공유할 것인가?
+
+### 성능 모니터링 시스템 구축
+
+서버 렌더링 성능, TTFB, 메모리 사용량 등을 추적하는 모니터링 시스템을 구축해보고 싶습니다. 단순히 구현하는 것을 넘어서서 프로덕션 환경에서 안정적으로 운영하는 방법을 배우고 싶어요.
+
+### React 18 Streaming SSR 도전
+
+현재는 `renderToString`을 사용했지만, `renderToPipeableStream`을 활용한 스트리밍 SSR을 구현해서 TTFB를 더 최적화해보고 싶습니다.
+
+# 마무리
+
+9주차는 정말 어려웠지만 그만큼 배운 게 많은 주차였습니다.
+
+지금까지 Next.js나 Nuxt 같은 프레임워크를 "그냥 쓰면 되는 도구" 정도로 생각했는데, 그 안에 숨어있는 복잡함과 고민들을 직접 경험해보니까 완전히 다른 관점으로 바라보게 되었어요.
+
+특히 "서버에서 렌더링한다"는 간단한 말 뒤에 메모리 격리, 상태 동기화, 하이드레이션, Universal JavaScript 등 수많은 복잡한 개념들이 숨어있다는 걸 깨달았습니다.

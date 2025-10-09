@@ -1,0 +1,343 @@
+---
+title: "항해 플러스 프론트엔드 6기 8주차, Chapter 3-2. 프런트엔드 테스트 코드 (2)"
+short_description: "8주차 과제는 지난 과제에 이어서 추가 요구사항인 반복 일정 기능을 TDD(테스트 주도 개발) 방식으로 구현하는 것입니다. 이번 과제의 핵심은 7주차와 완전히 반대되는 접근인 거 같아요. 7주차는 기존 코드에 테스트를 추가하는 방식이었다면, 8주차는 테스트를 먼저 작성"
+url_slug: "hanghae-plus-wil8"
+released_at: "2025-08-31T00:00:00.000Z"
+updated_at: "2025-08-31T00:00:00.000Z"
+is_private: false
+tags: ["WIL", "항해 플러스 프론트엔드 6기", "항해99"]
+thumbnail: "https://velog.velcdn.com/images/chan9yu/post/083d843c-9e6b-4970-9bac-68ffd1163ef4/image.png"
+series: "항해 플러스 프론트엔드 6기"
+index: 7
+---
+
+> **이전 블로그 링크:** [https://velog.io/@chan9yu/hanghae-plus-wil8](https://velog.io/@chan9yu/hanghae-plus-wil8)
+
+Red... Green... Refactor..
+
+<p center>
+	<image src="https://velog.velcdn.com/images/chan9yu/post/cda2b0d3-0f2b-42cd-91c3-1f9a2a34424c/image.jpg" />
+</p>
+
+TDD....?
+
+# 8주차 시작하기
+
+Chapter 3 테스트 코드의 마지막 8주차가 시작되었습니다. 지난주 7주차에서 테스트 코드를 처음 접해보고 이제 좀 감을 잡나 했는데, 이번 주는 **TDD(테스트 주도 개발)**라는 완전히 다른 접근법을 배워야 했습니다.
+
+<p center>
+	<image src="https://velog.velcdn.com/images/chan9yu/post/651e5a28-1294-4f0c-b7ef-d7d316640036/image.png" />
+</p>
+
+TDD에 대해 공부도 해보고 왜 사용하는지는 머리로 이해했습니다. 그리고 구현해야 될 내용도 저번 주차보다 적어서 이번에는 쉽게 갈 수 있을 거라 생각했습니다.
+
+.
+.
+.
+
+하지만 이번 주도 과제하느라 어김없이 밤새서 출근했습니다.. 하하
+
+<p center>
+	<image src="https://velog.velcdn.com/images/chan9yu/post/2d3df55f-2a6e-449a-a7d5-8af709b22cc7/image.png" />
+</p>
+
+> ㅇ<-<
+
+# 8주차 과제
+
+8주차 과제는 지난 과제에 이어서 추가 요구사항인 반복 일정 기능을 **TDD(테스트 주도 개발) 방식으로 구현**하는 것입니다.
+
+이번 과제의 핵심은 7주차와 완전히 반대되는 접근인 것 같아요. 7주차는 기존 코드에 테스트를 추가하는 방식이었다면, 8주차는 **테스트를 먼저 작성하고 그 다음에 구현**하는 TDD 방식이었습니다.
+
+**기본과제**
+
+- Red-Green-Refactor 사이클로 반복 일정 기능 구현
+- 매일/매주/매월/매년 반복 유형 지원
+- 반복 종료 조건 설정 (특정 날짜까지)
+- 반복 일정의 단일 수정/삭제 기능
+
+**심화과제**
+
+- 팀원들과 테스트 전략 토론 후 합의된 전략 수립
+- 합의된 전략에 맞는 추가 테스트 3개 이상 작성
+
+<p center>
+	<image src="https://velog.velcdn.com/images/chan9yu/post/25a7dd8b-f550-489c-bb07-70610f7f5369/image.png" />
+</p>
+
+특히 이번 과제에서는 **서버 개발자들이 휴가를 가버려서** 반복 일정 로직을 프론트엔드에서 전부 구현해야 한다고 하네요?... (🔨)
+
+## 어떻게 구현했을까?
+
+### 반복 일정 핵심 로직 구현
+
+반복 일정의 가장 핵심인 RepeatHelper 클래스를 TDD로 구현했습니다. 이 클래스에는 반복 일정 생성, 날짜 계산 로직, 윤년 처리, 월말 날짜 조정 등 여러 책임이 집중되어 있어요.
+
+```typescript
+class RepeatHelper {
+	private static readonly DEFAULT_END_DATE = "2025-10-30";
+
+	public createRepeatEvents(event: Event): Event[] {
+		if (event.repeat.type === "none") {
+			return [event];
+		}
+
+		const startDate = new Date(event.date);
+		const endDate = event.repeat.endDate ? new Date(event.repeat.endDate) : new Date(RepeatHelper.DEFAULT_END_DATE);
+
+		if (endDate < startDate) {
+			return [event];
+		}
+
+		const events: Event[] = [{ ...event, isRecurring: true }];
+		const originalDay = startDate.getDate();
+
+		let currentDate = new Date(startDate);
+		let eventCount = 1;
+
+		const collectNext = (date: Date) => {
+			const nextDate = this.getNextDate(date, event.repeat, originalDay);
+
+			if (nextDate > endDate) return;
+
+			events.push({
+				...event,
+				id: `${event.id}-${eventCount}`,
+				date: formatDate(nextDate),
+				originalId: event.id,
+				isRecurring: true
+			});
+
+			eventCount = eventCount + 1;
+			collectNext(nextDate);
+		};
+
+		collectNext(currentDate);
+		return events;
+	}
+}
+```
+
+재귀 함수로 구현한 `collectNext` 부분이 특히 복잡했는데, 테스트를 먼저 작성하니까 예상 결과가 명확해서 구현할 때 헷갈리지 않았어요.
+
+### 날짜 계산 로직 구현
+
+몇 가지 까다로웠던 날짜 계산 로직들이 있었습니다.
+
+#### 31일 매월 반복 문제
+
+31일에 매월 반복을 설정하면 31일이 없는 달(2월, 4월, 6월, 9월, 11월)에서는 어떻게 해야 할까요?
+
+```typescript
+private addMonths(date: Date, months: number, originalDay: number): Date {
+  const result = new Date(date);
+  const newYear = result.getFullYear();
+  const newMonth = result.getMonth() + months;
+
+  const lastDayOfTargetMonth = new Date(newYear, newMonth + 1, 0).getDate();
+  const targetDay = Math.min(originalDay, lastDayOfTargetMonth);
+  result.setFullYear(newYear, newMonth, targetDay);
+
+  return result;
+}
+```
+
+#### 윤년 2월 29일 문제
+
+윤년 2월 29일에 매년 반복하면 평년에는 어떻게 해야 할까요?
+
+```typescript
+private addYears(date: Date, years: number, originalDay: number): Date {
+  const result = new Date(date);
+  const originalMonth = result.getMonth();
+
+  result.setFullYear(result.getFullYear() + years);
+  result.setMonth(originalMonth);
+
+  if (originalMonth === 1 && originalDay === 29) {
+    const isLeapYear = this.isLeapYear(result.getFullYear());
+    result.setDate(isLeapYear ? 29 : 28);
+  } else {
+    result.setDate(originalDay);
+  }
+
+  return result;
+}
+```
+
+이런 엣지 케이스들을 테스트로 먼저 정의하고 구현하니까, 놓칠 수 있는 부분들을 미리 잡을 수 있었어요.
+
+### 팀 테스트 전략 토론
+
+심화과제에서는 팀원들과 테스트 전략에 대해 토론했습니다. 각자 다른 관점을 가지고 있어서 많이 이야기를 해보았는데
+
+**테스트 피라미드파**
+
+- 단위 테스트 중심으로 빠른 피드백
+- 비율: 단위 60-70%, 통합 20-30%, E2E 5-10%
+
+**테스트 트로피파**
+
+- 통합 테스트 중심으로 실용적 균형
+- 리액트 컴포넌트 간 상호작용 중시
+
+대충 이런 식으로 이야기가 진행되었던 것 같습니다.
+
+결론적으로는 **테스트 트로피 전략**을 선택했습니다. 리액트의 컴포넌트 간 상호작용이 중요하고, 사용자 관점에서의 테스트가 더 실용적이라는 판단이었습니다.
+
+```
+1. 실용적 균형점: 비용 대비 효과를 고려했을 때 통합 테스트가 가장 실용적
+2. 리액트 생태계 특성: 컴포넌트 간 상호작용이 중요한 프론트엔드 특성 고려
+3. 오버엔지니어링 방지: 과도한 단위 테스트로 인한 비효율성 방지
+4. 유지보수성: 리팩토링과 구현 변경에 대한 안정성 확보
+```
+
+### 테스트 트로피 전략에 맞는 테스트 구성
+
+합의된 전략에 따라 각 레벨별로 테스트를 작성했습니다.
+
+<p center>
+	<image src="https://velog.velcdn.com/images/chan9yu/post/0c03dd6c-fdc4-4184-9c5f-a5b8eb87420d/image.png" />
+</p>
+
+> 💡 테스트 트로피 전략이란?
+> 단위 테스트는 최소화하고, 통합 테스트를 가장 많이 작성하며, 핵심 시나리오만 E2E 테스트로 보완하는 방식으로, 실제 사용자 흐름을 안정적으로 보장하는 데 초점을 둔 테스트 분배 전략입니다.
+
+**단위 테스트**
+핵심 비즈니스 로직만 선별해서 윤년 처리, 월말 날짜 조정, 반복 일정 메타데이터 생성 등을 테스트했습니다.
+
+**통합 테스트**
+애플리케이션 전체 렌더링, 데이터 로딩 완료 확인, 에러 상태 처리, 사용자 인터랙션 등 통합 시나리오를 검증했습니다.
+
+**E2E 테스트**
+실제 브라우저에서 기본 UI 요소 확인, 폼 입력 기능, 앱 기본 동작, 일정 생성 등 실제 사용자 플로우를 테스트했습니다.
+
+### E2E 테스트의 복잡한 예외 처리
+
+E2E 테스트에서 가장 까다로웠던 부분은 **일정 겹침 경고 팝업 처리**였습니다. 최초 1회 진행했을 때는 팝업이 안 나타나는데, 그 후에 같은 데이터로 일정을 저장하려고 하면 겹침 경고 팝업이 나타나는 부분이 있었습니다.
+
+상황에 따라 팝업이 나타날 수도 있고 안 나타날 수도 있어서 안정적인 처리가 필요했습니다.
+
+```typescript
+const handleOverlapWarning = async (page: Page) => {
+	try {
+		const continueButton = page.getByRole("button", { name: /계속 진행|계속|continue|확인|yes/i }).first();
+
+		if (await continueButton.isVisible({ timeout: 2000 })) {
+			await continueButton.click();
+			await page.waitForTimeout(500);
+		}
+	} catch {
+		// 팝업이 없으면 무시하고 계속 진행
+	}
+};
+```
+
+## 그래서 결과는..?
+
+<p center>
+	<image src="https://velog.velcdn.com/images/chan9yu/post/c6b843c3-26cb-4d50-a51a-4e3cdb8387ba/image.png" />
+</p>
+
+목표했던 **TDD 방식으로 반복 일정 기능을 완전히 구현**할 수 있었습니다!
+
+- **기본과제**: Red-Green-Refactor 사이클로 반복 일정 모든 기능 구현
+- **심화과제**: 테스트 트로피 전략 합의 및 단위/통합/E2E 테스트 추가 작성
+
+특히 팀원들과 테스트 전략을 토론하면서 각자 다른 관점을 이해할 수 있었던 게 정말 좋았던 것 같습니다. 개인적으로는 테스트 피라미드가 맞다고 생각했는데, 토론 과정에서 리액트 생태계에서는 통합 테스트가 더 실용적일 수 있다는 걸 배웠습니다!
+
+<p center>
+	<image src="https://velog.velcdn.com/images/chan9yu/post/f4af0761-8058-45eb-bc58-a612a0d410ff/image.png" />
+</p>
+
+(어느새 브라운 배지....)
+
+# 8주차 KPT 회고
+
+## Keep
+
+### TDD의 Red-Green-Refactor 사이클 경험
+
+테스트를 먼저 작성하면서 요구사항을 명확하게 정의하게 되고, 구현할 때도 딱 테스트를 통과할 만큼만 작성하니까 오버엔지니어링을 방지할 수 있었습니다.
+
+```typescript
+// 처음에는 이렇게 간단하게 시작
+public createRepeatEvents(event: Event): Event[] {
+  return [event]; // 일단 테스트 통과만!
+}
+
+// 점진적으로 기능 추가
+public createRepeatEvents(event: Event): Event[] {
+  if (event.repeat.type === 'daily') {
+    // daily 로직 추가
+  }
+  return [event];
+}
+```
+
+### 팀 토론을 통한 테스트 전략 합의
+
+팀원들과 각자 다른 테스트 전략을 가지고 토론한 것도 정말 좋은 경험이었던 것 같습니다. 혼자였으면 그냥 "단위 테스트가 빠르니까 많이 쓰자" 정도로 생각했을 텐데, 다양한 관점을 들어보니까 더 깊이 있게 고민할 수 있었습니다.
+
+결국 **테스트 트로피 전략**으로 합의했는데, 그 이유가 납득이 되었습니다.
+
+- 리액트에서는 컴포넌트 간 상호작용이 중요함
+- 사용자 관점에서의 테스트가 더 실용적임
+- 구현 세부사항 변경에 덜 민감함
+
+## Problem
+
+### TDD 사이클에 적응하는 어려움
+
+TDD는 정말 기존 개발 방식과 완전히 달라서 적응이 어려웠습니다. 특히 **"구현도 안 된 기능을 어떻게 테스트해?"**라는 생각에서 벗어나는 게 힘들었습니다.
+
+처음에는 테스트 작성하는 시간이 구현하는 시간보다 더 오래 걸려서 "이게 맞나?" 싶기도 했던 것 같아요.
+
+### 복잡한 비즈니스 로직 테스트의 한계
+
+윤년 처리, 월말 날짜 조정 같은 복잡한 로직을 테스트로 표현하기가 쉽지 않았습니다. 엣지 케이스를 모두 고려한 테스트를 작성하려니 테스트 코드가 구현 코드보다 복잡해지는 느낌도 있었습니다.
+
+```typescript
+// 이런 테스트들이 정말 의미가 있을까? 싶기도 했고..
+test("31일에 매월 반복 설정 시 2월에는 28일(평년) 또는 29일(윤년)에 생성된다", () => {
+	// 테스트 코드가 엄청 길어짐...
+});
+```
+
+## Try
+
+### TDD를 실무에 점진적으로 도입하는 방법 고민
+
+이번 과제를 통해 TDD의 장점을 충분히 느꼈지만, 실무에서 바로 적용하기는 어려울 것 같습니다. 기존 프로젝트에 어떻게 점진적으로 도입할 수 있을지 고민해보고 싶습니다.
+
+### 테스트 전략의 실무 적용
+
+테스트 트로피 전략을 선택했지만, 실제 업무에서는 프로젝트 성격에 따라 달라질 수 있을 것 같습니다.
+
+- 공통 컴포넌트 개발: 단위 테스트 중심
+- 서비스 앱 개발: 통합 테스트 중심
+- 중요한 사용자 플로우: E2E 테스트
+
+이런 식으로 상황에 맞는 전략을 유연하게 적용하는 방법을 더 고민해보고 싶습니다.
+
+# 마무리
+
+8주차 과제를 통해 TDD에 대해 조금은 알 수 있어서 좋았던 것 같습니다.
+"구현 먼저, 테스트 나중에"에서 "테스트 먼저, 구현 나중에"로 바뀌는 것만으로도 코드를 바라보는 관점이 완전히 달라지는 것 같았습니다. 요구사항을 더 명확하게 정의하게 되고, 구현할 때도 딱 필요한 만큼만 작성하게 되는 것 같아서 좋은 경험이었던 것 같아요.
+
+그리고 팀원들과 테스트 전략을 토론하면서 **"좋은 테스트란 무엇인가?"**에 대해 깊이 고민할 수 있었던 것도 좋았습니다. 혼자였으면 절대 생각해보지 못했을 관점들을 배울 수 있었습니다.
+
+아직 TDD가 완전히 익숙해지지 않았지만, 이번 경험을 바탕으로 앞으로도 계속 연습해서 실무에서도 활용할 수 있는 수준까지 끌어올리고 싶습니다!!
+
+---
+
+이번 주 페어1팀 팀 회식 사진~
+
+<p center>
+	<image
+		src="https://velog.velcdn.com/images/chan9yu/post/ee0a7f36-7df4-4e6f-a0ce-ff2c2738db53/image.png"
+		width="500px"
+	/>
+</p>
+
+(열심히 먹느라 음식사진은 못 찍어서 없음)

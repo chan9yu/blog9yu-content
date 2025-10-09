@@ -1,0 +1,303 @@
+---
+title: "항해 플러스 프론트엔드 6기 4주차, Chapter 2-1. 클린코드와 리팩토링"
+short_description: "이번에는 리액트 내부에 있는 Hook을 구현하는게 메인 과제입니다! useMemo, useCallback 같은 기본 Hook과 직접 상태관리 Hook을 만들면서 많이 배워갈 수 있을 거 같아요 이번 주차에서는 리액트의 핵심 Hook들을 직접 구현해보면서 내부 동작 원리"
+url_slug: "hanghae-plus-wil4"
+released_at: "2025-08-03T00:00:00.000Z"
+updated_at: "2025-08-03T00:00:00.000Z"
+is_private: false
+tags: ["WIL", "항해 플러스 프론트엔드 6기", "항해99"]
+thumbnail: "https://velog.velcdn.com/images/chan9yu/post/bc5dc746-aee0-4ff7-a155-96414705a4ec/image.jpg"
+series: "항해 플러스 프론트엔드 6기"
+index: 4
+---
+
+> **이전 블로그 링크:** [https://velog.io/@chan9yu/hanghae-plus-wil4](https://velog.io/@chan9yu/hanghae-plus-wil4)
+
+이번 과제부터는 테오 코치님이 발제를 해주시는데 발제 때 AI를 적극적으로 사용해보라고 권장하셨고, 이번 기회로 직접 AI를 활용해서 엄청나게 더러운 더티코드를 클린코드로 바꿔보면서 AI 사용에 익숙해지는 것을 목표로 했습니다.
+
+(🚀 대 AI의 시대에서 개발 스타트업..)
+
+<p center>
+	<img
+		src="https://velog.velcdn.com/images/chan9yu/post/bebbf7b3-a911-45d7-be65-69161514c676/image.png"
+		width="400px;"
+	/>
+</p>
+
+# 4주차 시작하기
+
+드디어 **클린 코드** 주차인 4주차가 시작되었습니다~ 이번 주차부터 페어팀이 만들어진다고 했는데
+
+<p center>
+	<img src="https://velog.velcdn.com/images/chan9yu/post/b9cf4de2-2c44-4106-b967-00ba049b633b/image.png" />
+	<img
+		src="https://velog.velcdn.com/images/chan9yu/post/c26ef580-4d2b-44db-8725-6f63d688ef1a/image.png"
+		width="800px;"
+	/>
+</p>
+
+(이거 맞나요...?)
+
+사람들이 많아져서 뭔가 더 재미있어지고 얘기도 많이 할 기회가 생겨서 좋은 것 같습니다.
+
+> 페어 1팀 잘 부탁드려요 😌
+
+# 4주차 과제
+
+<p center>
+	<img src="https://velog.velcdn.com/images/chan9yu/post/21bd6632-7fef-492f-ad76-697b733c0cc5/image.png" />
+</p>
+
+이번 4주차부터 6주차까지는 클린 코드에 대해 과제를 진행하는 주간입니다!
+
+그 중에 4주차의 기본 과제는 바닐라 자바스크립트로 구현된 매우매우 더티한 코드를 가지고 클린 코드로 개선하는 것이고 심화 과제는 클린 코드로 변경한 내용들을 리액트와 타입스크립트로 마이그레이션하는 것이었습니다.
+
+<p center>
+	<img
+		src="https://velog.velcdn.com/images/chan9yu/post/d8a3cac4-0232-48c0-974c-e1e53e348a8b/image.png"
+		width="800px"
+	/>
+</p>
+
+...오 와우
+
+```javascript
+var prodList;
+var bonusPts = 0;
+var stockInfo;
+var itemCnt;
+var lastSel;
+var sel;
+var addBtn;
+var totalAmt = 0;
+var PRODUCT_ONE = "p1";
+var p2 = "p2";
+var product_3 = "p3";
+var p4 = "p4";
+var PRODUCT_5 = `p5`;
+```
+
+**var** 도배에 **일관성 없는 네이밍**까지... 마치 테오 코치님이 **"얼마나 더러운 코드를 만들 수 있을까?"** 하고 고민하며 만든 것 같은 느낌이었어요 ㅠㅠ
+
+그리고 700줄 넘는 **한 파일에 모든 로직**이 들어있고, **중첩된 for문 지옥**, **매직 넘버 천국**, **전역변수 남발**... 정말 모든 안티패턴의 집합체였습니다.
+
+## 어떻게 구현했을까?
+
+### AI 도구의 진화 과정
+
+이번 과제에서는 Claude의 도움을 많이 받았는데 시간이 지나면서 AI 활용 방식이 변화가 있었습니다.
+
+**1단계: Claude 웹 - 전략 수립**
+
+```
+"리팩토링을 어떻게 시작해야 할까요?"
+"이 더티코드의 문제점을 분석해주세요"
+```
+
+처음에는 개괄적인 방향성을 잡는 데 사용했어요.
+
+**2단계: Claude Desktop - 부분적 도움**
+
+그러다가 **Claude Desktop**을 발견하고 그냥 웹에서 사용하는 것보다 많은 도움을 받을 수 있었습니다.
+
+- MCP 연결을 통해 로컬 코드 일부만 복사해서 보냄
+- 특정 함수나 로직 위주로 **"이 부분만 고치자"**라는 식의 국소적 리팩토링
+- 범용적 도구로서 빠른 피드백, 반복 개선에 적합
+
+**3단계: Claude Code - 진짜 협업**
+
+하지만 **Claude Code**를 발견하고 완전 삶의 질이 달라졌는데요. 정말 **Claude Code** 정말 기똥차네요!
+
+프로젝트 전체를 연결해서 실시간으로 파일을 읽고 수정할 수 있게 되니까, 마치 **똑똑한 페어 프로그래머**와 함께 작업하는 느낌이었습니다.
+
+- 전체 프로젝트 맥락을 이해한 상태에서 정확한 제안
+- 파일 간 의존성과 흐름을 고려한 구조 개선
+- 직접 코드 수정까지 가능해져 작업 속도가 크게 향상됨
+
+### 기존 기능을 절대 깨뜨리지 않기
+
+과제를 진행하면서 가장 무서웠던 게 **혹시 내가 놓친 케이스가 있어서 기능이 깨질까..?** 였습니다. 그래서 정말 **소심하게** 리팩토링을 진행했는데
+
+- 항상 `pnpm test:basic`, `pnpm test:advanced` 실행한 상태에서 리팩토링
+- 작은 변경도 직접 브라우저에서 테스트
+- 특히 **복잡한 할인 로직**은 다양한 시나리오를 수동으로 체크
+
+실제로 `findProductById` 함수의 **파라미터 순서를 잘못 바꾸는 실수**로 테스트가 실패한 적이 있었는데, 변경을 **단계적으로 진행한 덕분에** 금방 파악하고 수정할 수 있었습니다.
+
+### Feature별 구조로 개선
+
+가장 만족스러웠던 부분은 **스파게티 코드를 feature별로 분리**한 것이에요.
+
+```
+src/features/
+├── cart/          # 장바구니 관련 로직
+├── help/          # 도움말 모달
+├── loyalty/       # 보너스 포인트
+├── product/       # 상품 선택
+└── sales/         # 할인 이벤트
+```
+
+각 feature는 자신만의 책임을 가지고, 다른 feature와는 **느슨하게 결합**되도록 만들었습니다.
+
+**Before: 지옥의 한 함수**
+
+```javascript
+function handleCalculateCartStuff() {
+	let cartItems;
+	let subTot;
+	// ... 20개 넘는 변수 선언
+
+	for (idx = 0; idx < prodList.length; idx++) {
+		for (let i = 0; i < cartItems.length; i++) {
+			// 150줄 넘는 중첩 로직...
+		}
+	}
+}
+```
+
+**After: 역할별로 분리**
+
+```javascript
+// features/cart/index.js
+export function handleCalculateCartStuff() {
+	const cartItems = getCartItems();
+	const totals = calculateCartTotals(cartItems);
+	const bonusPoints = calculateBonusPoints(totals.total);
+
+	updateCartDisplay(cartItems, totals, bonusPoints);
+}
+```
+
+### AI와의 올바른 협업 방식
+
+이번 과제를 통해 깨달은 **AI 활용 노하우**
+
+**요청은 최대한 구체적으로**
+
+- ❌ "이 함수를 리팩토링해주세요"
+- ✅ "이 함수의 중복된 할인 계산 로직을 별도 함수로 분리해주세요"
+
+**제안된 코드라도 반드시 테스트로 검증**
+
+AI가 만든 코드도 완벽하지 않습니다. 특히 **미묘한 로직 변경**이나 **엣지케이스 처리**에서 실수가 있을 수 있어서 항상 검증이 필요합니다!!
+
+**모르면 꼭 물어보기**
+
+"왜 이렇게 작성했나요?"라고 물어보면 AI가 의도를 설명해줘서 코드 이해에 도움이 많이 됩니다.
+
+### React + TypeScript 마이그레이션
+
+심화 과제에서는 정제된 바닐라 JS 코드를 React로 마이그레이션했는데, **basic에서 구조를 잘 잡아둔 덕분에** 생각보다 수월했습니다.
+
+```typescript
+// 타입 안전성 확보
+interface Product {
+	id: string;
+	name: string;
+	val: number;
+	originalVal: number;
+	q: number;
+	onSale: boolean;
+	suggestSale: boolean;
+}
+
+interface CartItem extends Product {
+	quantity: number;
+}
+```
+
+- **DOM 조작 코드 완전 제거**
+- **타입 안전성 확보**
+- **React 패턴 준수**
+- **재사용 가능한 컴포넌트 구조**
+- **유지보수성 향상**
+
+## 그래서 결과는..?
+
+<p center>
+	<img src="https://velog.velcdn.com/images/chan9yu/post/10f2aa5b-cb35-424c-b93e-d0276f8c0929/image.png" />
+</p>
+
+**기본 과제와 심화 과제 모두 통과**할 수 있었습니다!
+
+- ✅ **기본과제**: 700줄 스파게티 코드 → feature별 모듈화, 매직 넘버 제거, 순수 함수화
+- ✅ **심화과제**: 바닐라 JS → React + TypeScript 마이그레이션 완료
+
+<a href="https://chan9yu.github.io/front_6th_chapter2-1/" target="_blank">
+	배포 링크
+</a>
+
+# 4주차 KPT 회고
+
+## Keep
+
+### AI 활용의 점진적 발전
+
+**Claude Code**는 정말 현시점 최고의 개발 AI 도구인 것 같습니다. 단순 질의응답 → 부분적 도움 → 실시간 협업으로 발전하는 과정이 재미있었어요.
+
+**무조건 신뢰하지 않고 항상 검증**하며 사용한 습관도 정말 중요했습니다.
+
+### 점진적 리팩토링의 힘
+
+**기존 기능을 절대 깨뜨리지 않는다**는 원칙을 지킨 덕분에 안전하게 개선할 수 있었어요. 작은 변경 → 테스트 → 다음 변경의 사이클이 정말 효과적이었습니다.
+
+### Feature 기반 구조화
+
+**관심사 분리**를 통해 코드 가독성이 크게 향상됐습니다. 각 기능을 독립적으로 테스트하고 수정할 수 있게 되었어요.
+
+## Problem
+
+### 초기 설계 부족
+
+처음 리팩토링을 시작할 때는 **매직 넘버 제거부터** 시작했는데, 작업 중간에 **"이걸 feature 단위로 나누려면 이 부분도 바꿔야 하네..."** 같은 **재수정 작업이 생기면서 비효율이 발생**했습니다.
+
+### AI에 대한 의존도 관리
+
+90% AI에 맡기다 보니 **리팩토링 과정과 결과물 이해가 부족**했던 순간들이 있었어요. **잘못된 코드를 주면 판별이 어려웠던** 경우도 있었습니다.
+
+### 시간 부족의 현실
+
+여전히 회사 업무와 병행하다 보니 더 깊이 있게 공부하지 못한 아쉬움이 있어요... (이번 주 진짜 역대급 바쁨 진짜로오오오오오 😭😭)
+
+## Try
+
+### 초기 설계와 전체 구조 파악
+
+앞으로는 **작업 전에 전체 구조를 파악 후 목표 구조를 먼저 설계**해두고 시작하는 게 더 효율적일 거라고 느꼈습니다.
+
+### AI와의 더 똑똑한 협업
+
+- 15분 고민해보고 잘 안 된다 싶으면 **바로 AI에게 던지기**
+- **작업 범위를 명확히 지정해서 토큰 낭비 줄이기**
+
+### 클린코드 원칙 체화하기
+
+현재는 **성능에 대한 집착보다, 읽기 쉽고 관리하기 쉬운 코드 작성에 집중**하자는 마음가짐을 가지게 되었어요.
+
+# 마무리
+
+엄청난 더티코드를 리팩토링하는 과정에서 많은 걸 얻어갈 수 있었던 것 같아요. 기존 기능을 절대 깨뜨리지 않으면서 점진적으로 개선하기 위해 나름 규칙도 세웠던 것 같고, 구조적으로 생각할 수 있는 힘을 기른 것 같습니다.
+
+물론 이번 과제는 AI 의존도가 조금 높았습니다. 아마 Claude가 아니었다면 과제를 완성할 수 없었을 것 같아요. 하지만 AI는 도구일 뿐, 방향과 기준은 내가 먼저 세워야 한다는 걸 깨달았습니다.
+
+이번 주차도 과제에 시간을 많이 투자하지 못해 아쉬웠지만, 분명 얻어간 게 있다고 생각하고 있습니다.
+
+---
+
+<p center>
+	<img
+		src="https://velog.velcdn.com/images/chan9yu/post/a517ddbb-04ff-4ca3-908c-8f7b25f3697e/image.png"
+		width="500px;"
+	/>
+</p>
+
+회사 업무 때문에 과제 못해서 결국 목요일에 밤을 새고 출근해버린 나... ~~진짜 죽을뻔~~
+
+<p center>
+	<img
+		src="https://velog.velcdn.com/images/chan9yu/post/3844804f-c38f-4436-b897-e89650ed6cb9/image.png"
+		width="700px;"
+	/>
+</p>
+
+(도대체 무슨 싸움을...)
