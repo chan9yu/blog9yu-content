@@ -28,35 +28,38 @@ blog9yu-content/
 ---
 # 필수 필드
 title: "포스트 제목"
-short_description: "포스트 요약 (1-2문장)"
-url_slug: "post-url-slug" # 파일명과 동일해야 함
-released_at: "2025-10-06T00:00:00.000Z" # ISO 8601 형식
-updated_at: "2025-10-06T00:00:00.000Z" # ISO 8601 형식
-is_private: false
-tags: ["React", "TypeScript", "Next.js"] # 최소 1개
+description: "포스트 요약 (1-2문장)"
+slug: "post-slug" # 폴더명과 동일해야 함
+date: "2025-10-06T00:00:00.000Z" # ISO 8601 형식
+private: false
 
 # 선택 필드
-thumbnail: "./images/cover.png" # 상대 경로 (포스트 폴더 기준)
-series: "시리즈명"
-index: 1 # 시리즈 내 순서
+tags: ["React", "TypeScript", "Next.js"] # 빈 배열 가능
+thumbnail: "./images/cover.png" # 상대 경로, 없으면 null
+series: "시리즈명" # 없으면 null
+seriesOrder: 1 # 시리즈 내 순서, 없으면 null
 ---
 ```
 
 ## 작성 규칙
 
-1. **폴더명 = url_slug**: 폴더명과 `url_slug` 필드는 반드시 일치해야 합니다.
-   - 예: `posts/nextjs-optimization/` → `url_slug: "nextjs-optimization"`
+1. **폴더명 = slug**: 폴더명과 `slug` 필드는 반드시 일치해야 합니다.
+   - 예: `posts/nextjs-optimization/` → `slug: "nextjs-optimization"`
 
 2. **파일명**: 항상 `index.mdx` 사용
 
-3. **날짜 형식**: `released_at`, `updated_at`은 ISO 8601 형식 사용
-   - 예: `"2025-10-06T07:00:00.000Z"`
+3. **날짜 형식**: `date`는 ISO 8601 형식 사용
+   - 예: `"2025-10-06T00:00:00.000Z"`
 
-4. **태그**: 최소 1개 이상 필수, PascalCase 권장
-   - 예: `["React", "Next.js", "WebRTC"]`
+4. **태그**: 선택 필드로 빈 배열도 가능, PascalCase 권장
+   - 예: `["React", "Next.js", "WebRTC"]` 또는 `[]`
 
-5. **시리즈**: 동일한 시리즈명으로 그룹화, `index`로 순서 지정
-   - 예: `series: "React 완벽 가이드"`, `index: 1`
+5. **시리즈**: 동일한 시리즈명으로 그룹화, `seriesOrder`로 순서 지정
+   - 예: `series: "React 완벽 가이드"`, `seriesOrder: 1`
+   - 시리즈가 없으면 `series: null`, `seriesOrder: null`
+
+6. **Null 명시**: 선택 필드에 값이 없으면 `null`로 명시
+   - 예: `thumbnail: null`, `series: null`, `seriesOrder: null`
 
 ## 이미지 관리
 
