@@ -12,13 +12,13 @@ seriesOrder: 2
 
 # 서론
 
-안녕하세요! 지난 글에서는 WebRTC의 기본 개념과 연결 구조에 대해 알아보았습니다.  
+안녕하세요! 지난 글에서는 WebRTC의 기본 개념과 연결 구조에 대해 알아보았습니다.
 시그널링, SDP, NAT 문제 해결, 그리고 다양한 아키텍처 패턴까지 **연결(Connection)** 자체를 이해하는 데 집중했는데요
 
-그렇다면 연결이 된 후, 실제로 **주고받는 데이터는 무엇일까요?**  
+그렇다면 연결이 된 후, 실제로 **주고받는 데이터는 무엇일까요?**
 바로 **미디어 스트림(MediaStream)**과 **미디어 트랙(MediaStreamTrack)**입니다.
 
-처음 WebRTC로 화상 통화를 구현할 때 `getUserMedia()`를 사용해 카메라를 켜고, `addTrack()`으로 트랙을 추가하는 코드를 접해보셨을 겁니다.  
+처음 WebRTC로 화상 통화를 구현할 때 `getUserMedia()`를 사용해 카메라를 켜고, `addTrack()`으로 트랙을 추가하는 코드를 접해보셨을 겁니다.
 하지만 **"스트림과 트랙은 무엇이 다를까? 언제 어떤 걸 써야 할까?"**라는 의문이 생기기 쉽습니다.
 
 이번 글에서는 `MediaStream`과 `MediaStreamTrack`의 개념을 정리하고, 실제 WebRTC에서 어떻게 활용되는지 단계별로 살펴보겠습니다.
@@ -44,7 +44,7 @@ MediaStream API가 제공하는 것은 다음과 같습니다
 
 # MediaStream
 
-MediaStream은 **0개 이상의 MediaStreamTrack을 담는 컨테이너**입니다.  
+MediaStream은 **0개 이상의 MediaStreamTrack을 담는 컨테이너**입니다.
 쉽게 말해 여러 트랙(오디오, 비디오)을 하나로 묶어 관리하는 바구니라고 생각하시면 될 거 같네요
 
 ![MediaStream과 트랙 구조](https://raw.githubusercontent.com/chan9yu/blog9yu-content/refs/heads/main/posts/webrtc-deepdive-02/images/image-02.png)
@@ -253,14 +253,14 @@ audio: {
 
 # MediaStreamTrack
 
-MediaStreamTrack은 **실제 미디어 데이터를 담는 개별 단위**입니다.  
+MediaStreamTrack은 **실제 미디어 데이터를 담는 개별 단위**입니다.
 하나의 트랙은 하나의 미디어 타입(오디오 또는 비디오)만 담당합니다.
 
 ```javascript
 track.kind; // "audio" 또는 "video"
 ```
 
-**오디오 트랙**: 마이크, 시스템 오디오, Web Audio  
+**오디오 트랙**: 마이크, 시스템 오디오, Web Audio
 **비디오 트랙**: 카메라, 화면 공유, Canvas
 
 ## 트랙의 상태 (readyState)
