@@ -15,8 +15,7 @@ seriesOrder: 2
 안녕하세요! 지난 글에서는 WebRTC의 기본 개념과 연결 구조에 대해 알아보았습니다.
 시그널링, SDP, NAT 문제 해결, 그리고 다양한 아키텍처 패턴까지 **연결(Connection)** 자체를 이해하는 데 집중했는데요
 
-그렇다면 연결이 된 후, 실제로 **주고받는 데이터는 무엇일까요?**
-바로 **미디어 스트림(MediaStream)**과 **미디어 트랙(MediaStreamTrack)**입니다.
+그렇다면 연결이 된 후, 실제로 **주고받는 데이터는 무엇일까요?** 바로 **미디어 스트림(MediaStream)**과 **미디어 트랙(MediaStreamTrack)**입니다.
 
 처음 WebRTC로 화상 통화를 구현할 때 `getUserMedia()`를 사용해 카메라를 켜고, `addTrack()`으로 트랙을 추가하는 코드를 접해보셨을 겁니다.
 하지만 **"스트림과 트랙은 무엇이 다를까? 언제 어떤 걸 써야 할까?"**라는 의문이 생기기 쉽습니다.
@@ -229,7 +228,7 @@ const stream = await navigator.mediaDevices.getUserMedia({
 `facingMode`는 모바일 기기에서 전면/후면 카메라를 선택할 때 사용합니다.
 
 오디오는 통화 품질을 높이기 위한 다양한 처리 옵션을 제공합니다.
-특히 `echoCancellation`과 `noiseSuppression`은 화상 통화에서 필수적입니다.
+특히 `echoCancellation`과 `noiseSuppression`은 화상 통화 시 메아리와 배경 소음을 제거하여 통화 품질을 크게 개선합니다.
 
 ```javascript
 // 비디오
@@ -294,7 +293,7 @@ videoTrack.enabled = false; // 검은 화면 전송
 videoTrack.enabled = true; // 영상 재개
 ```
 
-주의사항:
+⚠️ 주의사항
 
 - `enabled = false`여도 카메라 LED는 계속 켜져 있음
 - 원격 피어에게는 변경사항이 자동 전달되지 않음 (별도 시그널링 필요)
@@ -323,7 +322,8 @@ muted 상태가 되는 경우는
 
 ![addTrack() 전송 구조](https://raw.githubusercontent.com/chan9yu/blog9yu-content/refs/heads/main/posts/webrtc-deepdive-02/images/image-04.png)
 
-로컬에서 캡처한 미디어를 원격 피어에게 전송하려면 RTCPeerConnection에 트랙을 추가해야 합니다. **2025년 현재 표준 방식**은 `addTrack()`입니다.
+로컬에서 캡처한 미디어를 원격 피어에게 전송하려면 RTCPeerConnection에 트랙을 추가해야 합니다.
+**2025년 현재 표준 방식**은 `addTrack()`입니다.
 
 > ⚠️ `addStream()`은 deprecated되었으므로 사용하지 마세요.
 
