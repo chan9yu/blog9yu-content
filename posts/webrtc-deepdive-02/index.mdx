@@ -1,0 +1,580 @@
+---
+title: "[WebRTC 박살내기] 미디어 스트림과 트랙 완벽 이해"
+description: "WebRTC의 MediaStream과 MediaStreamTrack을 깊이 이해하고, getUserMedia부터 트랙 제어, 품질 관리까지 실전 예제와 함께 알아봅니다."
+slug: "webrtc-deepdive-02"
+date: "2025-01-11T12:44:00.000Z"
+private: false
+tags: ["WebRTC", "MediaStream", "MediaStreamTrack", "실시간통신"]
+thumbnail: "https://raw.githubusercontent.com/chan9yu/blog9yu-content/refs/heads/main/posts/webrtc-deepdive-02/images/thumbnail.png"
+series: WebRTC 박살내기!
+seriesOrder: 2
+---
+
+# 서론
+
+안녕하세요! 지난 글에서는 WebRTC의 기본 개념과 연결 구조에 대해 알아보았습니다.  
+시그널링, SDP, NAT 문제 해결, 그리고 다양한 아키텍처 패턴까지 **연결(Connection)** 자체를 이해하는 데 집중했었죠.
+
+그렇다면 연결이 된 후, 실제로 **주고받는 데이터는 무엇일까요?**  
+바로 **미디어 스트림(MediaStream)**과 **미디어 트랙(MediaStreamTrack)**입니다.
+
+처음 WebRTC로 화상 통화를 구현할 때 `getUserMedia()`를 사용해 카메라를 켜고, `addTrack()`으로 트랙을 추가하는 코드를 접해보셨을 겁니다. 하지만 **"스트림과 트랙은 무엇이 다를까? 언제 어떤 걸 써야 할까?"**라는 의문이 생기기 쉽습니다.
+
+이번 글에서는 `MediaStream`과 `MediaStreamTrack`의 개념을 정리하고, 실제 WebRTC에서 어떻게 활용되는지 단계별로 살펴보겠습니다.
+
+![전체 구조 개요](https://raw.githubusercontent.com/chan9yu/blog9yu-content/refs/heads/main/posts/webrtc-deepdive-02/images/image-01.png)
+
+---
+
+# Media Capture and Streams API란?
+
+**[Media Capture and Streams API](https://developer.mozilla.org/ko/docs/Web/API/Media_Capture_and_Streams_API)**(줄여서 MediaStream API)는 WebRTC와 함께 사용되는 핵심 API로, **오디오와 비디오 데이터를 캡처하고 스트리밍**하는 기능을 제공합니다.
+
+## 스트림(Stream)이란?
+
+스트림은 **음성, 영상, 데이터 등의 작은 조각들이 하나의 줄기를 이루며 전송되는 데이터 흐름**입니다. 마치 물이 흐르듯이 연속적으로 데이터가 전달됩니다.
+
+## MediaStream API가 제공하는 것
+
+1. **미디어 스트림과 트랙**: 오디오/비디오를 담는 컨테이너와 실제 데이터
+2. **제약 조건(Constraints)**: 해상도, 프레임률 등 데이터 형식 제어
+3. **비동기 처리**: 미디어 접근 시 성공/실패 콜백과 이벤트 제공
+
+---
+
+# MediaStream 이해하기
+
+## MediaStream이란?
+
+MediaStream은 **0개 이상의 MediaStreamTrack을 담는 컨테이너**입니다.  
+쉽게 말해 여러 트랙(오디오, 비디오)을 하나로 묶어 관리하는 바구니입니다.
+
+## MediaStream의 구조
+
+![MediaStream과 트랙 구조](https://raw.githubusercontent.com/chan9yu/blog9yu-content/refs/heads/main/posts/webrtc-deepdive-02/images/image-02.png)
+
+각 MediaStreamTrack은 **하나 이상의 채널**을 가질 수 있습니다.
+
+> 예) 스테레오 오디오는 왼쪽/오른쪽 2개 채널
+
+## MediaStream의 입력과 출력
+
+MediaStream은 **하나의 입력(source)**과 **하나의 출력(consumer)**을 가집니다.
+
+![입력과 출력 흐름](https://raw.githubusercontent.com/chan9yu/blog9yu-content/refs/heads/main/posts/webrtc-deepdive-02/images/image-03.png)
+
+### 입력 소스
+
+**Local MediaStream** (`getUserMedia()` 또는 `getDisplayMedia()`로 생성)
+
+- 카메라
+- 마이크
+- 화면 공유
+
+**Non-local MediaStream** (외부에서 생성)
+
+- 네트워크(RTCPeerConnection)
+- 미디어 요소(`<video>`, `<audio>`)
+- Web Audio API
+
+### 출력 대상
+
+- `<video>` 또는 `<audio>` 요소
+- RTCPeerConnection (원격 피어로 전송)
+- MediaRecorder (녹화)
+- Web Audio API
+
+---
+
+# MediaDevices - 미디어 장치 접근
+
+## MediaDevices란?
+
+`MediaDevices`는 **카메라, 마이크, 화면 공유 등 현재 연결된 미디어 입력 장치에 접근**하는 방법을 제공하는 인터페이스입니다.
+
+```javascript
+// navigator.mediaDevices를 통해 접근
+const devices = navigator.mediaDevices;
+```
+
+## 주요 메서드
+
+### 1. getUserMedia() - 카메라/마이크
+
+```javascript
+const stream = await navigator.mediaDevices.getUserMedia({
+	video: true,
+	audio: true
+});
+
+// 비디오 요소에 연결
+document.querySelector("#myVideo").srcObject = stream;
+```
+
+### 2. getDisplayMedia() - 화면 공유
+
+```javascript
+const screenStream = await navigator.mediaDevices.getDisplayMedia({
+	video: true,
+	audio: true // 시스템 오디오
+});
+```
+
+### 3. enumerateDevices() - 장치 목록
+
+```javascript
+const devices = await navigator.mediaDevices.enumerateDevices();
+
+devices.forEach((device) => {
+	console.log(device.kind, device.label);
+	// "videoinput" "FaceTime HD Camera"
+	// "audioinput" "MacBook Pro Microphone"
+});
+```
+
+---
+
+# Constraints - 제약 조건 설정
+
+Constraints는 **MediaStream의 내용물을 제어**합니다.  
+미디어 타입, 해상도, 프레임률 등을 세밀하게 조정할 수 있습니다.
+
+## 기본 사용법
+
+```javascript
+const stream = await navigator.mediaDevices.getUserMedia({
+	video: {
+		width: { ideal: 1280 },
+		height: { ideal: 720 },
+		frameRate: { ideal: 30 }
+	},
+	audio: {
+		echoCancellation: true,
+		noiseSuppression: true
+	}
+});
+```
+
+## Constraints 키워드
+
+| 키워드  | 의미         | 동작                 |
+| ------- | ------------ | -------------------- |
+| `exact` | 정확히 이 값 | 불가능하면 에러 발생 |
+| `ideal` | 이상적인 값  | 최대한 맞추려 시도   |
+| `min`   | 최소값       | 이 값 이상           |
+| `max`   | 최대값       | 이 값 이하           |
+
+## 비디오 Constraints
+
+```javascript
+video: {
+  width: { min: 640, ideal: 1280, max: 1920 },
+  height: { min: 480, ideal: 720, max: 1080 },
+  frameRate: { max: 30 },
+  facingMode: 'user' // 전면 카메라 (모바일)
+}
+```
+
+## 오디오 Constraints
+
+```javascript
+audio: {
+  echoCancellation: true,      // 에코 제거
+  noiseSuppression: true,       // 노이즈 제거
+  autoGainControl: true,        // 자동 볼륨 조절
+  sampleRate: { ideal: 48000 }  // 샘플링 레이트
+}
+```
+
+---
+
+# MediaStreamTrack
+
+## MediaStreamTrack이란?
+
+MediaStreamTrack은 **실제 미디어 데이터를 담는 개별 단위**입니다.  
+하나의 트랙은 하나의 미디어 타입(오디오 또는 비디오)만 담당합니다.
+
+## 트랙의 종류 (kind)
+
+```javascript
+track.kind; // "audio" 또는 "video"
+```
+
+**오디오 트랙**: 마이크, 시스템 오디오, Web Audio  
+**비디오 트랙**: 카메라, 화면 공유, Canvas
+
+## 트랙의 상태 (readyState)
+
+```javascript
+track.readyState; // "live" 또는 "ended"
+```
+
+### live
+
+트랙이 활성 상태이며 미디어 데이터를 전송 중입니다.
+
+### ended
+
+트랙이 종료되었으며, 더 이상 미디어 데이터를 제공하지 않습니다.
+
+> 💡 한번 ended가 되면 다시 live로 돌아갈 수 없습니다!
+
+트랙이 종료되는 경우
+
+1. 사용자가 권한 철회
+2. 장치 연결 해제 (카메라 제거 등)
+3. `track.stop()` 호출
+4. 브라우저 탭 종료
+
+## enabled vs muted
+
+### enabled (제어 가능)
+
+개발자가 트랙의 **출력을 일시적으로 끄거나 켤 수** 있습니다.
+
+```javascript
+videoTrack.enabled = false; // 검은 화면 전송
+videoTrack.enabled = true; // 영상 재개
+```
+
+**주의사항**
+
+- `enabled = false`여도 카메라 LED는 계속 켜져 있음
+- 원격 피어에게는 변경사항이 자동 전달되지 않음 (별도 시그널링 필요)
+
+### muted (읽기 전용)
+
+브라우저나 시스템에 의해 결정되는 **읽기 전용** 속성입니다.
+
+```javascript
+track.addEventListener("mute", () => {
+	console.log("트랙이 음소거되었습니다");
+});
+```
+
+muted 상태가 되는 경우
+
+- 장치 연결 문제
+- 시스템 권한 변경
+- 리소스 부족
+
+---
+
+# MediaStream 주요 메서드와 이벤트
+
+## 메서드
+
+### 트랙 가져오기
+
+```javascript
+stream.getTracks(); // 모든 트랙
+stream.getAudioTracks(); // 오디오 트랙만
+stream.getVideoTracks(); // 비디오 트랙만
+stream.getTrackById(id); // 특정 ID 트랙
+```
+
+### 트랙 추가/제거
+
+```javascript
+stream.addTrack(track); // 트랙 추가
+stream.removeTrack(track); // 트랙 제거
+```
+
+### 복제
+
+```javascript
+const clonedStream = stream.clone(); // 새 ID로 복제
+```
+
+## 이벤트
+
+```javascript
+stream.addEventListener("addtrack", (event) => {
+	console.log("새 트랙 추가:", event.track);
+});
+
+stream.addEventListener("removetrack", (event) => {
+	console.log("트랙 제거:", event.track);
+});
+
+stream.addEventListener("active", () => {
+	console.log("스트림 활성화");
+});
+
+stream.addEventListener("inactive", () => {
+	console.log("스트림 비활성화");
+});
+```
+
+---
+
+# PeerConnection에 미디어 연결하기
+
+## addTrack() 사용하기
+
+![addTrack() 전송 구조](https://raw.githubusercontent.com/chan9yu/blog9yu-content/refs/heads/main/posts/webrtc-deepdive-02/images/image-04.png)
+
+**2025년 현재 표준 방식**입니다.
+
+> ⚠️ `addStream()`은 deprecated되었으므로 사용하지 마세요.
+
+```javascript
+const pc = new RTCPeerConnection(config);
+const stream = await navigator.mediaDevices.getUserMedia({
+	video: true,
+	audio: true
+});
+
+// 각 트랙을 개별적으로 추가
+stream.getTracks().forEach((track) => {
+	pc.addTrack(track, stream);
+});
+```
+
+### 왜 addTrack이 addStream보다 좋을까?
+
+1. **트랙 단위 제어**: 개별 트랙을 독립적으로 추가/제거/교체 가능
+2. **표준 준수**: 최신 WebRTC 스펙을 따름
+3. **재협상 제어**: 트랙 변경 시 자동으로 `negotiationneeded` 이벤트 발생
+4. **크로스 브라우저**: 모든 모던 브라우저 지원
+
+## 원격 트랙 수신하기
+
+```javascript
+pc.addEventListener("track", (event) => {
+	const [remoteStream] = event.streams;
+
+	document.querySelector("#remoteVideo").srcObject = remoteStream;
+});
+```
+
+---
+
+# 트랙 동적 제어하기
+
+## replaceTrack - 트랙 교체
+
+**재협상 없이** 송신 중인 트랙을 교체할 수 있습니다.
+
+![replaceTrack() 동작 흐름](https://raw.githubusercontent.com/chan9yu/blog9yu-content/refs/heads/main/posts/webrtc-deepdive-02/images/image-05.png)
+
+### 카메라 ↔ 화면 공유 전환
+
+```javascript
+async function toggleScreenShare(isSharing) {
+	const videoSender = pc.getSenders().find((sender) => sender.track?.kind === "video");
+
+	if (!videoSender) return;
+
+	if (isSharing) {
+		// 화면 공유로 전환
+		const screenStream = await navigator.mediaDevices.getDisplayMedia({
+			video: true
+		});
+		await videoSender.replaceTrack(screenStream.getVideoTracks()[0]);
+	} else {
+		// 카메라로 복귀
+		const cameraStream = await navigator.mediaDevices.getUserMedia({
+			video: true
+		});
+		await videoSender.replaceTrack(cameraStream.getVideoTracks()[0]);
+	}
+}
+```
+
+## 트랙 제거
+
+```javascript
+const sender = pc.getSenders().find((s) => s.track === myTrack);
+if (sender) {
+	pc.removeTrack(sender);
+	myTrack.stop(); // 트랙 리소스 정리
+}
+```
+
+---
+
+# 미디어 처리 흐름 이해하기
+
+## 전체 파이프라인
+
+![미디어 처리 파이프라인](https://raw.githubusercontent.com/chan9yu/blog9yu-content/refs/heads/main/posts/webrtc-deepdive-02/images/image-06.png)
+
+### 1단계: 캡처 (Capture)
+
+`getUserMedia()`, `getDisplayMedia()`, `captureStream()`
+
+### 2단계: 인코딩 (Encoding)
+
+브라우저가 코덱(VP8, H.264, Opus 등)으로 압축
+
+### 3단계: 전송 (Transmission)
+
+RTP 프로토콜로 네트워크 전송
+
+### 4단계: 디코딩 (Decoding)
+
+수신 측에서 코덱으로 복원
+
+### 5단계: 재생 (Playback)
+
+`<video>` 또는 `<audio>` 요소로 출력
+
+## 트랙 단위 전송의 장점
+
+1. **독립적 제어**: 비디오와 오디오를 각각 제어
+2. **동적 교체**: 필요 시 특정 트랙만 교체
+3. **선택적 전송**: 대역폭에 따라 일부 트랙만 전송
+4. **멀티 소스**: 여러 소스를 조합해 새로운 스트림 생성
+
+---
+
+# 품질 제어하기
+
+## 전송 품질 조절
+
+```javascript
+const sender = pc.getSenders().find((s) => s.track?.kind === "video");
+const params = sender.getParameters();
+
+if (!params.encodings) {
+	params.encodings = [{}];
+}
+
+// 최대 비트레이트 500kbps로 제한
+params.encodings[0].maxBitrate = 500000;
+
+// 해상도를 원본의 50%로 축소
+params.encodings[0].scaleResolutionDownBy = 2;
+
+await sender.setParameters(params);
+```
+
+## 네트워크 적응 (Adaptive Streaming)
+
+브라우저는 네트워크 상황을 자동으로 감지하여 품질을 조정합니다.  
+`chrome://webrtc-internals/`에서 실시간 통계를 확인할 수 있습니다.
+
+---
+
+# 확장 개념
+
+## 멀티 소스 결합
+
+```javascript
+const camera = await navigator.mediaDevices.getUserMedia({
+	video: true,
+	audio: true
+});
+
+const screen = await navigator.mediaDevices.getDisplayMedia({
+	video: true
+});
+
+// 카메라 오디오 + 화면 비디오 결합
+const combined = new MediaStream([...camera.getAudioTracks(), ...screen.getVideoTracks()]);
+```
+
+## Canvas 비디오 합성
+
+```javascript
+const canvas = document.createElement("canvas");
+canvas.width = 1280;
+canvas.height = 720;
+const ctx = canvas.getContext("2d");
+
+function drawFrame() {
+	ctx.drawImage(video1, 0, 0, 640, 720);
+	ctx.drawImage(video2, 640, 0, 640, 720);
+	requestAnimationFrame(drawFrame);
+}
+drawFrame();
+
+const compositeStream = canvas.captureStream(30);
+pc.addTrack(compositeStream.getVideoTracks()[0], compositeStream);
+```
+
+---
+
+# 실전 팁
+
+## 1. 리소스 정리 필수
+
+```javascript
+function cleanup(stream) {
+	stream.getTracks().forEach((track) => track.stop());
+}
+
+// React 예시
+useEffect(() => {
+	return () => cleanup(localStream);
+}, [localStream]);
+```
+
+## 2. 권한 에러 처리
+
+```javascript
+try {
+	const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+} catch (error) {
+	if (error instanceof DOMException) {
+		if (error.name === "NotAllowedError") {
+			alert("카메라 권한을 허용해주세요");
+		} else if (error.name === "NotFoundError") {
+			alert("카메라를 찾을 수 없습니다");
+		}
+	}
+}
+```
+
+## 3. HTTPS 필수
+
+`getUserMedia()`는 **보안 컨텍스트(HTTPS)**에서만 작동합니다.
+
+- 개발: `localhost`는 예외
+- 프로덕션: 반드시 HTTPS
+
+## 4. 모바일 고려사항
+
+```javascript
+// 자동재생을 위해 음소거 필요
+videoElement.muted = true;
+await videoElement.play();
+```
+
+---
+
+# 정리
+
+이번 글에서는 WebRTC의 **MediaStream과 MediaStreamTrack**에 대해 알아보았습니다.
+
+## 핵심 요약!
+
+### MediaStream
+
+- 트랙들을 담는 컨테이너
+- 고유한 `id`로 식별
+- `getTracks()`, `addTrack()`, `removeTrack()` 제공
+
+### MediaStreamTrack
+
+- 실제 미디어 데이터
+- `kind`: "audio" 또는 "video"
+- `readyState`: "live" 또는 "ended"
+- `enabled`: 출력 제어
+- `muted`: 시스템 상태 (읽기 전용)
+
+### 미디어 장치 접근
+
+- `getUserMedia()`: 카메라/마이크
+- `getDisplayMedia()`: 화면 공유
+- Constraints로 품질 설정
+
+### 트랙 제어
+
+- `addTrack()`: 표준 전송 방식
+- `replaceTrack()`: 재협상 없이 교체
+- 품질 제어: `setParameters()`
+
+다음 글에서는 **RTCPeerConnection API와 이벤트 흐름**을 다루며, 실제 연결 후 데이터가 어떻게 오가는지 살펴보겠습니다.
