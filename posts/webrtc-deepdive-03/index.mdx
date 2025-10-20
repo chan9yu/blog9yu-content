@@ -1,0 +1,574 @@
+---
+title: "[WebRTC 박살내기] PeerConnection API와 이벤트 흐름"
+description: "WebRTC의 핵심 RTCPeerConnection을 완벽하게 이해하고, 연결 생성부터 이벤트 처리, 품질 관리, 연결 복구까지 실전 예제와 함께 알아봅니다."
+slug: "webrtc-deepdive-03"
+date: "2025-10-20T04:21:34.000Z"
+private: false
+tags: ["WebRTC", "RTCPeerConnection", "P2P", "실시간통신", "ICE", "SDP"]
+thumbnail: "https://raw.githubusercontent.com/chan9yu/blog9yu-content/refs/heads/main/posts/webrtc-deepdive-03/images/thumbnail.png"
+series: WebRTC 박살내기!
+seriesOrder: 3
+---
+
+# 서론
+
+안녕하세요! 지난 글에서는 **MediaStream과 MediaStreamTrack**을 배웠습니다.
+카메라와 마이크를 켜고, 트랙을 제어하는 방법까지 알아보았는데요.
+
+이번에는 **"이 미디어를 실제로 어떻게 상대방에게 보낼까?"**를 다룹니다.
+그 중심에 있는 것이 바로 [RTCPeerConnection](https://developer.mozilla.org/en-US/docs/Web/API/RTCPeerConnection)입니다.
+
+`RTCPeerConnection`은 WebRTC의 핵심 객체로, 시그널링, SDP 교환, ICE 후보 처리를 실제로 실행하는 주체입니다.
+이 글에서는 `RTCPeerConnection`이 무엇이고, 실제로 어떻게 사용하는지 알아보겠습니다.
+
+![WebRTC 연결 전체 개요](https://raw.githubusercontent.com/chan9yu/blog9yu-content/refs/heads/main/posts/webrtc-deepdive-03/images/image-01.png)
+
+# RTCPeerConnection이란?
+
+RTCPeerConnection은 **두 피어 간의 P2P 연결을 관리하는 객체**입니다.
+
+이 객체가 담당하는 일은 다음과 같습니다.
+
+- **미디어 협상**: 어떤 코덱, 해상도로 통신할지 합의
+- **네트워크 경로 탐색**: 연결 가능한 모든 경로 찾기
+- **데이터 전송**: 실제 오디오/비디오 송수신
+- **상태 관리**: 연결 성공/실패/끊김 감지
+
+쉽게 말해, WebRTC 연결의 **모든 것을 이 객체 하나가 처리**합니다.
+
+---
+
+# PeerConnection 생성
+
+## 기본 설정
+
+```javascript
+const pc = new RTCPeerConnection({
+	iceServers: [{ urls: "stun:stun.l.google.com:19302" }]
+});
+```
+
+RTCPeerConnection을 만들 때 가장 중요한 설정이 **iceServers**입니다.
+
+> **🧐 왜 필요할까?**
+>
+> 대부분의 사용자는 공유기(NAT) 뒤에 있어서 실제 IP 주소를 상대방이 알 수 없습니다.
+> STUN 서버는 **"너의 공인 IP는 1.2.3.4야"**라고 알려주는 역할을 합니다.
+
+## TURN 서버 추가
+
+```javascript
+const pc = new RTCPeerConnection({
+	iceServers: [
+		{ urls: "stun:stun.l.google.com:19302" },
+		// TURN 서버 추가
+		{
+			urls: "turn:your-turn-server.com:3478",
+			username: "user",
+			credential: "password"
+		}
+	]
+});
+```
+
+회사나 학교 같은 네트워크는 보안을 위해 방화벽을 설치하는 경우가 많습니다.
+이 방화벽은 외부에서 들어오는 연결을 차단하기 때문에, 양쪽 모두 방화벽 뒤에 있으면 직접 연결이 불가능합니다.
+
+TURN 서버는 이런 상황에서 중계 역할을 합니다.
+두 피어가 직접 연결하지 못하면, 각자 TURN 서버에 연결하고 TURN 서버가 그 사이에서 데이터를 전달해줍니다.
+
+![WebRTC TURN Server](https://raw.githubusercontent.com/chan9yu/blog9yu-content/refs/heads/main/posts/webrtc-deepdive-03/images/image-02.png)
+
+단점은 모든 데이터가 TURN 서버를 거쳐야 해서 지연 시간이 증가하고, 대역폭을 소비해 비용이 발생할 수밖에 없다는 점입니다.
+그래서 WebRTC는 직접 연결을 먼저 시도하고, 실패할 때만 TURN 서버를 사용하게 됩니다.
+
+# 이벤트 리스너 등록
+
+연결을 시작하기 전에 **먼저 이벤트 리스너를 등록**해야 합니다.
+그렇지 않으면 초기 단계에서 발생하는 중요한 이벤트를 놓칠 수 있습니다.
+
+## icecandidate
+
+브라우저가 **연결 가능한 네트워크 경로(ICE Candidate)** 를 찾을 때마다 발생합니다.
+WebRTC는 NAT, 방화벽, 네트워크 종류(Wi-Fi, LTE 등)에 따라 서로 다른 경로를 탐색합니다.
+이때 찾아낸 후보 경로를 **상대방에게 즉시 전달**해야 연결이 완성됩니다.
+
+```javascript
+pc.addEventListener("icecandidate", (event) => {
+	if (event.candidate) {
+		signalingChannel.send({
+			type: "candidate",
+			candidate: event.candidate
+		});
+	}
+});
+```
+
+> 💡 **참고**
+>
+> ICE(Interactive Connectivity Establishment)는 두 피어 간 최적의 네트워크 경로를 자동으로 찾아주는 WebRTC의 핵심 메커니즘입니다.
+> 모든 후보를 수집한 뒤, 가장 안정적인 경로가 선택됩니다.
+
+## track
+
+상대 피어가 **미디어 트랙(영상, 오디오 등)** 을 전송할 때 발생합니다.
+즉, 원격 사용자의 카메라나 마이크 스트림이 수신될 때 실행됩니다.
+이 이벤트에서 전달되는 `event.streams[0]`을 `<video>` 또는 `<audio>` 요소에 연결하면 상대방의 화면이나 음성이 표시됩니다.
+
+```javascript
+pc.addEventListener("track", (event) => {
+	const remoteVideo = document.querySelector("#remoteVideo");
+	remoteVideo.srcObject = event.streams[0];
+});
+```
+
+> 💡 **참고**
+>
+> 이 이벤트는 `addTrack()`이나 `addTransceiver()`를 통해 상대 피어가 새로운 트랙을 추가할 때 트리거됩니다.
+> 브라우저가 자동으로 MediaStream을 구성하므로 별도의 수신 설정이 필요 없습니다.
+
+## connectionstatechange
+
+`RTCPeerConnection`의 **전체 연결 상태**가 바뀔 때 발생합니다.
+이벤트 핸들러 내부에서는 `pc.connectionState`를 통해 현재 상태를 확인할 수 있습니다.
+
+```javascript
+pc.addEventListener("connectionstatechange", () => {
+	switch (pc.connectionState) {
+		case "new":
+			console.log("연결 초기화됨");
+			break;
+		case "connecting":
+			console.log("연결 시도 중");
+			break;
+		case "connected":
+			console.log("연결 성공");
+			break;
+		case "disconnected":
+			console.log("일시적으로 끊김");
+			break;
+		case "failed":
+			console.log("연결 실패");
+			break;
+		case "closed":
+			console.log("연결 종료");
+			break;
+	}
+});
+```
+
+| 상태           | 설명                                           |
+| -------------- | ---------------------------------------------- |
+| `new`          | 아직 연결이 시작되지 않은 초기 상태            |
+| `connecting`   | ICE 전송이 연결을 설정 중                      |
+| `connected`    | 연결이 성공적으로 완료됨                       |
+| `disconnected` | 일시적인 네트워크 단절 발생 (자동 재시도 가능) |
+| `failed`       | 연결 실패, 수동 재연결 필요                    |
+| `closed`       | PeerConnection이 완전히 종료됨                 |
+
+> 💡 **참고**
+>
+> 이 이벤트는 ICE 레벨의 연결 상태(`iceconnectionstatechange`)와 달리, 전체 PeerConnection의 "최종 상태"를 반영합니다.
+> 즉, ICE뿐만 아니라 미디어, 데이터 채널 등 모든 연결 단계를 포함합니다.
+
+## negotiationneeded
+
+`negotiationneeded`라는 단어가 다소 생소하게 느껴질 수 있는데요,
+앞 글자 **"nego"**를 보면 중고거래에서 가격을 흥정할 때 쓰는 **"네고하다"**의 '네고'와 같은 의미입니다.
+즉, **PeerConnection 간 재협상이 필요할 때** 브라우저가 자동으로 발생시키는 이벤트입니다.
+
+```javascript
+pc.addEventListener("negotiationneeded", async () => {
+	const offer = await pc.createOffer();
+	await pc.setLocalDescription(offer);
+
+	signalingChannel.send({ type: "offer", sdp: offer });
+});
+```
+
+이 이벤트는 **PeerConnection의 구성이나 전송 방향이 변경되었을 때** 자동으로 트리거됩니다.
+
+- 트랙이 **추가되거나 제거**될 때
+- 트랙 전송 방향이 **변경**될 때 (`sendonly`, `recvonly` 등)
+- **DataChannel**이 새로 추가될 때
+- **트랜시버(Transceiver)** 설정이 변경될 때
+
+보통 이 이벤트가 발생하면, **새로운 Offer를 생성해 시그널링 서버를 통해 상대 피어에게 전송**합니다.
+
+> 💡 **참고**
+>
+> `negotiationneeded`는 브라우저가 "이제 SDP(세션 기술 정보)를 다시 맞춰야 한다"고 판단할 때 호출됩니다.
+> 수동으로 호출하는 이벤트가 아니라, 브라우저가 "우리 지금 다시 협상해야 해"라고 알려주는 신호입니다.
+
+![이벤트 발생 흐름](https://raw.githubusercontent.com/chan9yu/blog9yu-content/refs/heads/main/posts/webrtc-deepdive-03/images/image-03.png)
+
+# 미디어 추가
+
+```javascript
+const stream = await navigator.mediaDevices.getUserMedia({
+	video: true,
+	audio: true
+});
+
+stream.getTracks().forEach((track) => {
+	pc.addTrack(track, stream);
+});
+```
+
+카메라와 마이크를 켜서 PeerConnection에 추가합니다.
+
+**addTrack()을 호출하면 무슨 일이 일어날까요?**
+
+1. 트랙이 PeerConnection에 등록됨
+2. `negotiationneeded` 이벤트가 자동으로 발생
+3. 이벤트 핸들러에서 Offer를 만들어 전송
+4. 상대방이 Answer로 응답하면 연결 시작
+
+---
+
+# Offer/Answer 교환
+
+## Offer 생성 (발신자)
+
+```javascript
+// 1. Offer 생성
+const offer = await pc.createOffer();
+
+// 2. 내 PeerConnection에 등록
+await pc.setLocalDescription(offer);
+
+// 3. 상대방에게 전송
+signalingChannel.send({ type: "offer", sdp: offer });
+```
+
+**createOffer()**는 SDP라는 형식으로 다음 정보를 담습니다.
+
+- 내가 지원하는 코덱 (VP8, H.264, Opus 등)
+- 보낼 미디어 종류 (비디오, 오디오)
+- 네트워크 프로토콜
+
+**setLocalDescription()**은 이 설정을 내 브라우저에 알려줍니다.
+"앞으로 이 설정으로 통신할 거야"라고 선언하는 거죠.
+
+## Answer 생성 (수신자)
+
+```javascript
+// 1. 받은 Offer를 등록
+await pc.setRemoteDescription(receivedOffer);
+
+// 2. Answer 생성
+const answer = await pc.createAnswer();
+
+// 3. 내 PeerConnection에 등록
+await pc.setLocalDescription(answer);
+
+// 4. 응답 전송
+signalingChannel.send({ type: "answer", sdp: answer });
+```
+
+**setRemoteDescription()**은 상대방의 설정을 받아들이는 것입니다.
+
+**createAnswer()**는 상대방의 Offer를 보고 응답을 만듭니다.
+양쪽이 모두 지원하는 코덱과 설정을 자동으로 선택합니다.
+
+## ICE Candidate 교환
+
+```javascript
+// 상대방의 Candidate 받기
+signalingChannel.on("candidate", async (candidate) => {
+	await pc.addIceCandidate(candidate);
+});
+```
+
+Offer/Answer 교환과 동시에 **ICE Candidate도 주고받아야** 합니다.
+브라우저가 찾은 연결 경로를 서로 공유하는 과정입니다.
+
+![Offer / Answer 교환 순서](https://raw.githubusercontent.com/chan9yu/blog9yu-content/refs/heads/main/posts/webrtc-deepdive-03/images/image-04.png)
+
+---
+
+# 전체 연결 흐름
+
+지금까지 배운 내용을 실제 코드로 정리하면 다음과 같습니다.
+
+```javascript
+// 1. PeerConnection 생성
+const pc = new RTCPeerConnection({
+	iceServers: [{ urls: "stun:stun.l.google.com:19302" }]
+});
+
+// 2. 이벤트 리스너 등록
+pc.addEventListener("icecandidate", (e) => {
+	if (e.candidate) {
+		signalingChannel.send({ type: "candidate", candidate: e.candidate });
+	}
+});
+
+pc.addEventListener("track", (e) => {
+	document.querySelector("#remoteVideo").srcObject = e.streams[0];
+});
+
+pc.addEventListener("connectionstatechange", () => {
+	console.log("상태:", pc.connectionState);
+});
+
+pc.addEventListener("negotiationneeded", async () => {
+	const offer = await pc.createOffer();
+	await pc.setLocalDescription(offer);
+	signalingChannel.send({ type: "offer", sdp: offer });
+});
+
+// 3. 미디어 추가 (negotiationneeded 자동 발생)
+const stream = await navigator.mediaDevices.getUserMedia({
+	video: true,
+	audio: true
+});
+
+stream.getTracks().forEach((track) => {
+	pc.addTrack(track, stream);
+});
+
+// 4. 상대방 메시지 처리
+signalingChannel.on("offer", async (offer) => {
+	await pc.setRemoteDescription(offer);
+	const answer = await pc.createAnswer();
+	await pc.setLocalDescription(answer);
+	signalingChannel.send({ type: "answer", sdp: answer });
+});
+
+signalingChannel.on("answer", async (answer) => {
+	await pc.setRemoteDescription(answer);
+});
+
+signalingChannel.on("candidate", async (candidate) => {
+	await pc.addIceCandidate(candidate);
+});
+```
+
+이것이 RTCPeerConnection의 전체 연결 흐름입니다.
+
+**핵심 포인트**
+
+1. 이벤트 리스너를 **먼저** 등록
+2. 미디어를 추가하면 `negotiationneeded` **자동** 발생
+3. ICE Candidate는 Offer/Answer와 **병렬**로 교환
+4. 모든 메시지는 **시그널링 채널**을 통해 전달
+
+---
+
+# 품질 관리
+
+## 상태 모니터링
+
+```javascript
+async function checkQuality() {
+	const stats = await pc.getStats();
+
+	stats.forEach((report) => {
+		if (report.type === "inbound-rtp" && report.kind === "video") {
+			const packetsLost = report.packetsLost || 0;
+			const packetsReceived = report.packetsReceived || 0;
+			const lossRate = packetsLost / (packetsLost + packetsReceived);
+
+			console.log(`패킷 손실률: ${(lossRate * 100).toFixed(2)}%`);
+
+			if (lossRate > 0.05) {
+				console.warn("⚠️ 네트워크 불안정");
+			}
+		}
+	});
+}
+
+setInterval(checkQuality, 3000);
+```
+
+**getStats()**는 현재 연결의 모든 통계를 제공합니다.
+
+**패킷 손실률**은 네트워크 품질의 핵심 지표입니다.
+데이터가 네트워크를 통과하다가 일부가 사라지는 비율인데요,
+5% 이상이면 영상이 끊기거나 버벅거립니다.
+
+## 비트레이트 조절
+
+```javascript
+async function adjustBitrate(targetBitrate) {
+	const sender = pc.getSenders().find((s) => s.track?.kind === "video");
+	if (!sender) return;
+
+	const params = sender.getParameters();
+	if (!params.encodings) params.encodings = [{}];
+
+	params.encodings[0].maxBitrate = targetBitrate;
+	await sender.setParameters(params);
+
+	console.log(`비트레이트 조정: ${targetBitrate / 1000}kbps`);
+}
+
+// 네트워크 상태에 따라 자동 조절
+async function autoAdjust() {
+	const stats = await pc.getStats();
+
+	stats.forEach((report) => {
+		if (report.type === "inbound-rtp" && report.kind === "video") {
+			const lossRate = report.packetsLost / report.packetsReceived;
+
+			if (lossRate > 0.05) {
+				adjustBitrate(500_000); // 500kbps
+			} else if (lossRate < 0.02) {
+				adjustBitrate(2_500_000); // 2.5Mbps
+			}
+		}
+	});
+}
+
+setInterval(autoAdjust, 5000);
+```
+
+**비트레이트(Bitrate)**는 **초당 전송하는 데이터 양**입니다.
+
+비트레이트가 높으면?
+
+- 화질이 좋아짐
+- 네트워크 대역폭을 많이 씀
+- 불안정한 네트워크에서는 끊김
+
+비트레이트가 낮으면?
+
+- 화질이 떨어짐
+- 네트워크 대역폭을 적게 씀
+- 불안정한 네트워크에서도 안정적
+
+네트워크 상태를 보고 자동으로 조절하면 최적의 경험을 제공할 수 있습니다.
+
+---
+
+# 연결 복구
+
+```javascript
+let reconnectAttempts = 0;
+const MAX_ATTEMPTS = 3;
+
+pc.addEventListener("iceconnectionstatechange", async () => {
+	const state = pc.iceConnectionState;
+	console.log("ICE 상태:", state);
+
+	if (state === "disconnected") {
+		console.log("⚠️ 연결 끊김, 재연결 시도");
+
+		if (reconnectAttempts < MAX_ATTEMPTS) {
+			reconnectAttempts++;
+
+			// ICE 재시작
+			const offer = await pc.createOffer({ iceRestart: true });
+			await pc.setLocalDescription(offer);
+			signalingChannel.send({ type: "offer", sdp: offer });
+		} else {
+			console.error("❌ 재연결 실패, 수동 재시작 필요");
+		}
+	}
+
+	if (state === "connected") {
+		reconnectAttempts = 0;
+		console.log("✅ 연결 복구 성공");
+	}
+
+	if (state === "failed") {
+		console.error("❌ 연결 완전 실패");
+	}
+});
+```
+
+**iceRestart: true** 옵션은 새로운 네트워크 경로를 찾습니다.
+
+이 옵션이 필요한 경우는 다음과 같습니다.
+
+- Wi-Fi에서 LTE로 전환
+- VPN 연결/해제
+- 네트워크 환경 변경
+
+즉, 네트워크망 정보가 변경되었을 때 사용됩니다.
+
+> WebRTC는 네트워크망이 변경되면 Negotiation(협상)과 Signaling(시그널링)을 다시 진행해야 합니다.
+
+기존 연결 경로가 더 이상 유효하지 않을 때, 처음부터 다시 경로를 찾는 것입니다.
+
+---
+
+# 리소스 정리
+
+```javascript
+function cleanup() {
+	// 1. 미디어 트랙 정지
+	if (localStream) {
+		localStream.getTracks().forEach((track) => {
+			track.stop();
+			console.log(`${track.kind} 트랙 정지`);
+		});
+	}
+
+	// 2. PeerConnection 종료
+	if (pc) {
+		pc.close();
+		console.log("PeerConnection 종료");
+	}
+
+	// 3. UI 정리
+	const localVideo = document.querySelector("#localVideo");
+	const remoteVideo = document.querySelector("#remoteVideo");
+
+	if (localVideo) localVideo.srcObject = null;
+	if (remoteVideo) remoteVideo.srcObject = null;
+
+	console.log("✅ 리소스 정리 완료");
+}
+
+// 페이지 나갈 때 자동 실행
+window.addEventListener("beforeunload", cleanup);
+```
+
+**리소스 정리가 중요한 이유**
+
+1. **카메라/마이크 해제**
+   - `track.stop()` 없이는 카메라 불빛이 계속 켜져있음
+   - 다른 앱에서도 사용할 수 없음
+
+2. **메모리 누수 방지**
+   - PeerConnection이 열려있으면 계속 메모리 사용
+   - 장시간 방치하면 브라우저가 느려짐
+
+3. **네트워크 리소스 해제**
+   - `pc.close()` 없이는 연결이 계속 유지됨
+   - 서버에서도 불필요한 리소스 소비
+
+React에서는 다음과 같이 사용하면 되겠죠?
+
+```javascript
+useEffect(() => {
+	// 연결 설정...
+
+	return () => {
+		cleanup(); // 컴포넌트 언마운트 시 자동 실행
+	};
+}, []);
+```
+
+---
+
+# 정리
+
+이번 글에서는 **RTCPeerConnection API**의 모든 것을 다뤘습니다.
+
+RTCPeerConnection은 WebRTC 연결의 핵심입니다.
+이벤트 리스너를 먼저 등록하고, 미디어를 추가하면 자동으로 협상이 시작됩니다.
+Offer/Answer/Candidate를 시그널링 채널로 주고받으면 연결이 완성되고, 이후에는 품질을 모니터링하고 관리합니다.
+
+**사용 시 기억할 것!**
+
+- 이벤트 리스너는 **맨 처음** 등록
+- `negotiationneeded`가 **자동 협상** 담당
+- 시그널링 채널은 **직접 구현** 필요
+- 패킷 손실률 5% 이상이면 **품질 조절**
+- 연결 끊기면 **ICE Restart**로 복구
+- 종료 시 **반드시 리소스 정리**
+
+다음 글에서는 실시간 채팅 / 파일 전송 / 게임 데이터 동기화 등 영상/음성이 아닌 일반 데이터를 P2P로 주고받는 **RTCDataChannel**에 대해 알아보겠습니다.
