@@ -21,8 +21,6 @@ seriesOrder: 3
 `RTCPeerConnection`은 WebRTC의 핵심 객체로, 시그널링, SDP 교환, ICE 후보 처리를 실제로 실행하는 주체입니다.
 이 글에서는 `RTCPeerConnection`이 무엇이고, 실제로 어떻게 사용하는지 알아보겠습니다.
 
-![WebRTC 연결 전체 개요](https://raw.githubusercontent.com/chan9yu/blog9yu-content/refs/heads/main/posts/webrtc-deepdive-03/images/image-01.png)
-
 # RTCPeerConnection이란?
 
 RTCPeerConnection은 **두 피어 간의 P2P 연결을 관리하는 객체**입니다.
@@ -77,7 +75,7 @@ const pc = new RTCPeerConnection({
 TURN 서버는 이런 상황에서 중계 역할을 합니다.
 두 피어가 직접 연결하지 못하면, 각자 TURN 서버에 연결하고 TURN 서버가 그 사이에서 데이터를 전달해줍니다.
 
-![WebRTC TURN Server](https://raw.githubusercontent.com/chan9yu/blog9yu-content/refs/heads/main/posts/webrtc-deepdive-03/images/image-02.png)
+![WebRTC TURN Server](https://raw.githubusercontent.com/chan9yu/blog9yu-content/refs/heads/main/posts/webrtc-deepdive-03/images/image-01.png)
 
 단점은 모든 데이터가 TURN 서버를 거쳐야 해서 지연 시간이 증가하고, 대역폭을 소비해 비용이 발생할 수밖에 없다는 점입니다.
 그래서 WebRTC는 직접 연결을 먼저 시도하고, 실패할 때만 TURN 서버를 사용하게 됩니다.
@@ -200,7 +198,7 @@ pc.addEventListener("negotiationneeded", async () => {
 > `negotiationneeded`는 브라우저가 "이제 SDP(세션 기술 정보)를 다시 맞춰야 한다"고 판단할 때 호출됩니다.
 > 수동으로 호출하는 이벤트가 아니라, 브라우저가 "우리 지금 다시 협상해야 해"라고 알려주는 신호입니다.
 
-![이벤트 발생 흐름](https://raw.githubusercontent.com/chan9yu/blog9yu-content/refs/heads/main/posts/webrtc-deepdive-03/images/image-03.png)
+![이벤트 발생 흐름](https://raw.githubusercontent.com/chan9yu/blog9yu-content/refs/heads/main/posts/webrtc-deepdive-03/images/image-02.png)
 
 # 미디어 추가
 
@@ -283,7 +281,7 @@ signalingChannel.on("candidate", async (candidate) => {
 Offer/Answer 교환과 동시에 **ICE Candidate도 주고받아야** 합니다.
 브라우저가 찾은 연결 경로를 서로 공유하는 과정입니다.
 
-![Offer / Answer 교환 순서](https://raw.githubusercontent.com/chan9yu/blog9yu-content/refs/heads/main/posts/webrtc-deepdive-03/images/image-04.png)
+![Offer / Answer 교환 순서](https://raw.githubusercontent.com/chan9yu/blog9yu-content/refs/heads/main/posts/webrtc-deepdive-03/images/image-03.png)
 
 ---
 
