@@ -22,8 +22,6 @@ seriesOrder: 2
 
 이번 글에서는 `MediaStream`과 `MediaStreamTrack`의 개념을 정리하고, 실제 WebRTC에서 어떻게 활용되는지 단계별로 살펴보겠습니다.
 
-![전체 구조 개요](https://raw.githubusercontent.com/chan9yu/blog9yu-content/refs/heads/main/posts/webrtc-deepdive-02/images/image-01.png)
-
 ---
 
 # Media Capture and Streams API
@@ -46,7 +44,7 @@ MediaStream API가 제공하는 것은 다음과 같습니다
 MediaStream은 **0개 이상의 MediaStreamTrack을 담는 컨테이너**입니다.
 쉽게 말해 여러 트랙(오디오, 비디오)을 하나로 묶어 관리하는 바구니라고 생각하시면 될 거 같네요
 
-![MediaStream과 트랙 구조](https://raw.githubusercontent.com/chan9yu/blog9yu-content/refs/heads/main/posts/webrtc-deepdive-02/images/image-02.png)
+![MediaStream과 트랙 구조](https://raw.githubusercontent.com/chan9yu/blog9yu-content/refs/heads/main/posts/webrtc-deepdive-02/images/image-01.png)
 
 각 MediaStreamTrack은 **하나 이상의 채널**을 가질 수 있습니다.
 
@@ -56,7 +54,7 @@ MediaStream은 **0개 이상의 MediaStreamTrack을 담는 컨테이너**입니�
 
 MediaStream은 **하나의 입력(source)**과 **하나의 출력(consumer)**을 가집니다.
 
-![입력과 출력 흐름](https://raw.githubusercontent.com/chan9yu/blog9yu-content/refs/heads/main/posts/webrtc-deepdive-02/images/image-03.png)
+![입력과 출력 흐름](https://raw.githubusercontent.com/chan9yu/blog9yu-content/refs/heads/main/posts/webrtc-deepdive-02/images/image-02.png)
 
 **입력 소스**
 
@@ -320,8 +318,6 @@ muted 상태가 되는 경우는
 
 # PeerConnection에 미디어 연결
 
-![addTrack() 전송 구조](https://raw.githubusercontent.com/chan9yu/blog9yu-content/refs/heads/main/posts/webrtc-deepdive-02/images/image-04.png)
-
 로컬에서 캡처한 미디어를 원격 피어에게 전송하려면 RTCPeerConnection에 트랙을 추가해야 합니다.
 **2025년 현재 표준 방식**은 `addTrack()`입니다.
 
@@ -368,7 +364,7 @@ pc.addEventListener("track", (event) => {
 
 ## replaceTrack()
 
-![replaceTrack() 동작 흐름](https://raw.githubusercontent.com/chan9yu/blog9yu-content/refs/heads/main/posts/webrtc-deepdive-02/images/image-05.png)
+![replaceTrack() 동작 흐름](https://raw.githubusercontent.com/chan9yu/blog9yu-content/refs/heads/main/posts/webrtc-deepdive-02/images/image-03.png)
 
 `replaceTrack()`은 WebRTC 연결을 유지한 채로 송신 중인 트랙을 다른 트랙으로 교체할 수 있습니다.
 **재협상(renegotiation) 과정이 필요 없어 매우 빠르게 전환**됩니다.
@@ -411,7 +407,7 @@ if (sender) {
 
 # 미디어 처리 흐름
 
-![미디어 처리 파이프라인](https://raw.githubusercontent.com/chan9yu/blog9yu-content/refs/heads/main/posts/webrtc-deepdive-02/images/image-06.png)
+![미디어 처리 파이프라인](https://raw.githubusercontent.com/chan9yu/blog9yu-content/refs/heads/main/posts/webrtc-deepdive-02/images/image-04.png)
 
 1. **캡처**: `getUserMedia()`, `getDisplayMedia()`, `captureStream()`
 2. **인코딩**: 브라우저가 코덱(VP8, H.264, Opus 등)으로 압축
