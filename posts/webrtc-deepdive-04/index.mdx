@@ -1,0 +1,699 @@
+---
+title: "[WebRTC 박살내기] 데이터 채널 구조와 활용법"
+description: "WebRTC의 RTCDataChannel을 이해하고, 채팅·파일 전송·게임 동기화까지 실시간 데이터 전송의 모든 것을 알아봅니다."
+slug: "webrtc-deepdive-04"
+date: "2025-10-24T08:30:00.000Z"
+private: false
+tags: ["WebRTC", "RTCDataChannel", "P2P", "실시간통신", "SCTP"]
+thumbnail: "https://raw.githubusercontent.com/chan9yu/blog9yu-content/refs/heads/main/posts/webrtc-deepdive-04/images/thumbnail.png"
+series: WebRTC 박살내기!
+seriesOrder: 4
+---
+
+# 서론
+
+안녕하세요! 지난 글에서는 **RTCPeerConnection의 이벤트 흐름**을 배웠습니다.
+PeerConnection을 생성하고, 미디어 트랙을 주고받는 방법까지 알아보았는데요.
+
+그런데 혹시 이런 생각 해보신 적 없으신가요?
+
+**"WebRTC로 채팅도 만들 수 있을까?"**  
+**"서버 없이 브라우저끼리 파일을 주고받을 수 있을까?"**  
+**"게임에서 플레이어 위치를 실시간으로 동기화하려면?"**
+
+네, 전부 가능합니다! WebRTC는 영상·음성뿐만 아니라 **모든 종류의 데이터**를 P2P로 전송할 수 있습니다.
+이를 담당하는 것이 바로 **RTCDataChannel**입니다.
+
+이번 글에서는 데이터 채널이 무엇인지, 언제 어떻게 사용하는지 차근차근 알아보겠습니다.
+
+---
+
+# 데이터 채널이란?
+
+## 개념 이해하기
+
+RTCDataChannel은 **두 브라우저가 직접 데이터를 주고받을 수 있는 통로**입니다.
+마치 두 사람이 실로 전화기를 만들어 대화하듯이, 브라우저끼리 직접 연결되는 거죠.
+
+영상 통화를 하면서 채팅도 하고, 파일도 주고받고, 게임 데이터도 동기화할 수 있습니다.
+서버를 거치지 않기 때문에 **빠르고, 서버 비용도 절약**됩니다.
+
+> 🧐 서버를 완전히 안 거칠까?
+>
+> DataChannel은 연결이 성립되면 보통 브라우저 간 P2P로 통신합니다.
+> 다만 **일부 네트워크에서는 TURN 릴레이를 통해 서버를 경유할 수 있어요.**
+> 이 경우 대역폭 비용이 발생합니다.
+
+## WebSocket과 뭐가 다를까?
+
+채팅이나 실시간 데이터 전송이라고 하면 보통 WebSocket을 떠올리시죠?
+DataChannel도 비슷하지만 큰 차이가 있습니다.
+
+**WebSocket**
+
+사용자A -> **서버** -> 사용자B  
+모든 데이터가 서버를 거쳐야 합니다.
+
+**DataChannel**
+
+사용자A -> -> -> 사용자B  
+한 번 연결되면 피어끼리 직접 통신합니다.
+
+| 특징      | WebSocket        | RTCDataChannel |
+| --------- | ---------------- | -------------- |
+| 연결 방식 | 서버를 통한 중계 | P2P 직접 연결  |
+| 지연 시간 | 중간             | 매우 낮음      |
+| 서버 부하 | 높음             | 없음 (연결 후) |
+| 신뢰성    | 항상 보장        | 선택 가능      |
+| 순서 보장 | 항상 보장        | 선택 가능      |
+
+가장 큰 차이는 **중간에 서버가 없다**는 것입니다.
+화상 통화 중에 채팅을 하거나 파일을 보내도 서버 트래픽이 증가하지 않습니다.
+
+---
+
+# 스트림 제어 전송 프로토콜 (Stream Control Transmission Protocol, SCTP)
+
+RTCDataChannel은 내부적으로 **[SCTP](https://developer.mozilla.org/ko/docs/Glossary/SCTP)**라는 프로토콜을 사용합니다.
+
+> 💡 **SCTP란?**
+>
+> "우체국"처럼 생각하면 쉽습니다.
+> 창구가 여러 개라서 줄이 안 꼬이고, 예비 도로까지 확보한 배송 시스템이에요.
+>
+> 각 소포(메시지)마다 **일반 택배(신뢰성 보장)**처럼 반드시 전달할지,
+> **퀵(빠른 전달)**처럼 늦으면 버리기로 할지 고를 수 있고,
+> **순서대로 받을지?** **빨리 오는 대로 받을지?**에 대한 방식도 창구별로 정할 수 있어요.
+>
+> 한 창구가 막혀도 다른 창구는 계속 처리되고,
+> 한 도로가 막히면 다른 경로로 자동 우회합니다.
+
+각 채널별로 "Reliable/Unreliable, Ordered/Unordered" 정책을 정합니다
+
+## 네 가지 전송 모드
+
+SCTP는 두 가지 옵션을 조합할 수 있습니다.
+
+### 신뢰성 (Reliable vs Unreliable)
+
+**Reliable (신뢰성 보장)**
+
+- 편지가 분실되면 다시 보냄
+- 모든 데이터가 **반드시** 도착
+- 예: 채팅 메시지, 파일 전송
+
+**Unreliable (신뢰성 미보장)**
+
+- 편지가 분실되어도 다시 보내지 않음
+- **빠른 전달**이 더 중요할 때
+- 예: 게임 좌표, 실시간 센서값
+
+### 순서 (Ordered vs Unordered)
+
+**Ordered (순서 보장)**
+
+- 보낸 순서대로 받음
+- 1 -> 2 -> 3 순서가 중요
+- 예: 파일 조각, 대화 내용
+
+**Unordered (순서 미보장)**
+
+- 빨리 도착하는 것부터 받음
+- 최신 정보만 중요
+- 예: 현재 위치, 센서 최신값
+
+## 왜 이렇게 선택해서 사용하는 걸까?
+
+실시간 게임을 예로 들어볼게요.
+
+**플레이어 위치 전송**
+
+- 1초 전 위치는 의미 없음 -> Unreliable
+- 최신 위치만 중요 -> Unordered
+- 설정
+
+```javascript
+{
+  ordered: false,
+  maxRetransmits: 0
+}
+```
+
+**채팅 메시지**
+
+- 모든 메시지가 도착해야 함 -> Reliable
+- 순서가 바뀌면 대화가 이상해짐 -> Ordered
+- 설정
+
+```javascript
+{
+  ordered: true, // 기본값
+}
+```
+
+이런 식으로 상황에 맞는 최적의 방법을 선택할 수 있습니다!
+
+---
+
+# 데이터 채널 만들기
+
+![DataChannel 생성 및 연결 흐름](https://raw.githubusercontent.com/chan9yu/blog9yu-content/refs/heads/main/posts/webrtc-deepdive-04/images/image-01.png)
+
+## 기본 사용법
+
+데이터 채널은 한쪽에서 만들고, 다른 쪽에서 받습니다.
+마치 전화를 거는 사람과 받는 사람처럼요.
+
+**발신자 (채널을 만드는 쪽)**
+
+```javascript
+const pc = new RTCPeerConnection();
+
+// 채널 생성
+const channel = pc.createDataChannel("chat");
+
+// 연결되면 메시지 보낼 수 있음
+channel.onopen = () => {
+	console.log("✅ 채널 연결됨!");
+	channel.send("안녕하세요!");
+};
+
+// 메시지 받기
+channel.onmessage = (event) => {
+	console.log("받은 메시지:", event.data);
+};
+```
+
+**수신자 (채널을 받는 쪽)**
+
+```javascript
+// 상대방이 만든 채널 받기
+pc.ondatachannel = (event) => {
+	const channel = event.channel;
+	console.log("📡 채널 수신됨");
+
+	channel.onmessage = (event) => {
+		console.log("받은 메시지:", event.data);
+		// 받은 메시지에 답장
+		channel.send("반가워요!");
+	};
+};
+```
+
+> ⚠️ **주의사항**
+>
+> `createDataChannel()`을 호출하는 쪽이 Offer를 먼저 보내야 합니다.
+> Answer를 보내는 쪽은 `ondatachannel`로만 채널을 받을 수 있어요.
+
+## 옵션 설정하기
+
+채널을 만들 때 전송 방식을 정할 수 있습니다.
+
+```javascript
+// 채팅용 - 모든 메시지가 순서대로 도착
+const chatChannel = pc.createDataChannel("chat", {
+	ordered: true // 순서 보장 (기본값)
+});
+
+// 게임용 - 빠른 전송, 손실 허용
+const gameChannel = pc.createDataChannel("position", {
+	ordered: false, // 순서 상관없음
+	maxRetransmits: 0 // 재전송 안 함
+});
+
+// 파일 전송용 - 완전한 신뢰성
+const fileChannel = pc.createDataChannel("file", {
+	ordered: true
+	// maxRetransmits와 maxPacketLifeTime 둘 다 없으면
+	// 무한 재전송 = 완전한 신뢰성
+});
+```
+
+### 주요 옵션 설명
+
+| 옵션                | 의미               | 사용 예시          |
+| ------------------- | ------------------ | ------------------ |
+| `ordered`           | 순서 보장 여부     | 채팅, 파일         |
+| `maxRetransmits`    | 최대 재전송 횟수   | 중요한 명령        |
+| `maxPacketLifeTime` | 패킷 수명 (밀리초) | 실시간 센서 데이터 |
+
+> 💡 **재전송 옵션 선택 기준**
+>
+> - 둘 다 안 쓰면: 무한 재전송 (완전한 신뢰성)
+> - `maxRetransmits: 3`: 3번까지만 재시도
+> - `maxPacketLifeTime: 1000`: 1초 안에 못 가면 포기
+> - 둘 다 쓰면 안 됩니다!
+
+---
+
+# 상황별 설정 가이드
+
+실제로 어떤 설정을 써야 할까요? 대표적인 사용 사례를 볼게요.
+
+## 1. 채팅 애플리케이션
+
+**요구사항**: 모든 메시지가 순서대로 도착해야 함
+
+```javascript
+const chatChannel = pc.createDataChannel("chat", {
+	ordered: true
+	// 완전한 신뢰성 (기본값)
+});
+
+chatChannel.onopen = () => {
+	// 연결되면 메시지 보낼 수 있음
+	document.getElementById("sendBtn").disabled = false;
+};
+
+chatChannel.onmessage = (event) => {
+	// 화면에 메시지 표시
+	const msg = JSON.parse(event.data);
+	addMessageToChat(msg.text, msg.sender);
+};
+
+// 메시지 보내기
+function sendMessage(text) {
+	const message = {
+		text: text,
+		sender: "me",
+		timestamp: Date.now()
+	};
+	chatChannel.send(JSON.stringify(message));
+}
+```
+
+**왜 이 설정?**
+
+- 대화가 뒤섞이면 안 되니까 → `ordered: true`
+- 메시지를 놓치면 안 되니까 → 완전한 신뢰성 (재전송 제한 없음)
+
+## 2. 실시간 게임 좌표
+
+**요구사항**: 최신 위치만 중요, 이전 데이터는 무시
+
+```javascript
+const positionChannel = pc.createDataChannel("position", {
+	ordered: false, // 순서 상관없음
+	maxRetransmits: 0 // 재전송 안 함 = 빠른 전달
+});
+
+// 60fps로 위치 전송
+setInterval(() => {
+	const position = {
+		x: player.x,
+		y: player.y,
+		timestamp: Date.now()
+	};
+
+	positionChannel.send(JSON.stringify(position));
+}, 16); // 약 60fps
+
+positionChannel.onmessage = (event) => {
+	const pos = JSON.parse(event.data);
+	updateRemotePlayer(pos.x, pos.y);
+};
+```
+
+**왜 이 설정?**
+
+- 0.5초 전 위치는 의미 없으니까 → `ordered: false`
+- 재전송하는 동안 새 위치가 또 오니까 → `maxRetransmits: 0`
+
+## 3. 파일 전송
+
+**요구사항**: 모든 데이터 조각이 정확히 도착해야 함
+
+```javascript
+const fileChannel = pc.createDataChannel("file", {
+	ordered: true
+	// 완전한 신뢰성
+});
+
+async function sendFile(file) {
+	// 1. 파일 정보 먼저 보내기
+	fileChannel.send(
+		JSON.stringify({
+			type: "file-start",
+			name: file.name,
+			size: file.size
+		})
+	);
+
+	// 2. 16KB씩 잘라서 보내기
+	const CHUNK_SIZE = 16384;
+	const buffer = await file.arrayBuffer();
+
+	for (let i = 0; i < buffer.byteLength; i += CHUNK_SIZE) {
+		const chunk = buffer.slice(i, i + CHUNK_SIZE);
+		fileChannel.send(chunk);
+
+		// 진행률 표시
+		const progress = ((i + CHUNK_SIZE) / buffer.byteLength) * 100;
+		console.log(`전송 중: ${Math.min(progress, 100).toFixed(1)}%`);
+	}
+
+	// 3. 전송 완료 신호
+	fileChannel.send(JSON.stringify({ type: "file-end" }));
+}
+```
+
+**왜 이 설정?**
+
+- 파일 조각 순서가 바뀌면 파일이 깨짐 → `ordered: true`
+- 하나라도 빠지면 파일이 깨짐 → 완전한 신뢰성
+
+---
+
+# 시나리오별 빠른 참고표
+
+| 사용 사례       | ordered | maxRetransmits / maxPacketLifeTime | 설명                          |
+| --------------- | ------- | ---------------------------------- | ----------------------------- |
+| **채팅**        | true    | –                                  | 순서 중요, 완전 신뢰          |
+| **파일 전송**   | true    | –                                  | 모든 조각 필요                |
+| **게임 좌표**   | false   | `0`                                | 최신값만 중요(손실 허용)      |
+| **센서 데이터** | false   | `maxPacketLifeTime: 100` (예시)    | 일정 시간 경과시 폐기         |
+| **제어 명령**   | true    | `3`                                | 제한 재전송(타임아웃 후 포기) |
+
+---
+
+# 데이터 보내고 받기
+
+## 다양한 데이터 타입
+
+데이터 채널은 여러 종류의 데이터를 보낼 수 있습니다.
+
+```javascript
+// 1. 문자열
+channel.send("안녕하세요!");
+
+// 2. JSON 데이터
+const data = { type: "move", x: 100, y: 200 };
+channel.send(JSON.stringify(data));
+
+// 3. 바이너리 데이터 (ArrayBuffer)
+const buffer = new ArrayBuffer(8);
+channel.send(buffer);
+
+// 4. Blob (파일 등)
+const blob = new Blob(["Hello"], { type: "text/plain" });
+channel.send(blob);
+```
+
+## 받을 때 타입 구분하기
+
+```javascript
+channel.onmessage = (event) => {
+	const data = event.data;
+
+	// 문자열인지 확인
+	if (typeof data === "string") {
+		console.log("텍스트:", data);
+
+		// JSON인지 확인
+		try {
+			const json = JSON.parse(data);
+			console.log("JSON:", json);
+		} catch (e) {
+			// 일반 문자열
+		}
+	}
+	// ArrayBuffer
+	else if (data instanceof ArrayBuffer) {
+		console.log("바이너리 데이터:", data.byteLength, "bytes");
+	}
+	// Blob
+	else if (data instanceof Blob) {
+		data.text().then((text) => console.log("Blob:", text));
+	}
+};
+```
+
+---
+
+# 주의할 점
+
+## 1. 버퍼 관리
+
+데이터를 너무 빨리 많이 보내면 버퍼가 가득 찹니다.
+
+```javascript
+// ❌ 나쁜 예: 버퍼 확인 없이 계속 보내기
+for (let i = 0; i < 10000; i++) {
+	channel.send(`메시지 ${i}`); // 버퍼 초과 가능!
+}
+
+// ✅ 좋은 예: 버퍼 확인하면서 보내기
+function safeSend(data) {
+	// 버퍼가 1MB 미만일 때만 보내기
+	if (channel.bufferedAmount < 1024 * 1024) {
+		channel.send(data);
+		return true;
+	}
+
+	console.warn("버퍼 가득 참, 잠시 대기");
+	return false;
+}
+
+// 버퍼 여유 생기면 알림
+channel.bufferedAmountLowThreshold = 65536; // 64KB
+channel.onbufferedamountlow = () => {
+	console.log("버퍼 여유 생김!");
+};
+```
+
+## 2. 채널 상태 확인
+
+```javascript
+// 메시지 보내기 전에 항상 확인
+if (channel.readyState === "open") {
+	channel.send("Hello!");
+} else {
+	console.log("채널이 아직 열리지 않았습니다");
+}
+
+// readyState 값
+// "connecting" - 연결 중
+// "open" - 사용 가능
+// "closing" - 닫히는 중
+// "closed" - 닫힘
+```
+
+## 3. 메시지 크기 제한
+
+브라우저마다 한 번에 보낼 수 있는 크기가 다릅니다.
+
+```javascript
+// 브라우저에 따라 지원 여부가 다름
+console.log(pc.sctp?.maxMessageSize); // 지원 안 하면 undefined
+// 안전하게 16KB 청크로 전송하는 것을 권장
+
+// 큰 파일은 잘라서 보내기
+const CHUNK_SIZE = 16384; // 16KB (안전한 크기)
+
+async function sendLargeData(file) {
+	const buffer = await file.arrayBuffer();
+
+	for (let i = 0; i < buffer.byteLength; i += CHUNK_SIZE) {
+		const chunk = buffer.slice(i, i + CHUNK_SIZE);
+
+		// 버퍼 확인하면서 보내기
+		while (channel.bufferedAmount > CHUNK_SIZE * 2) {
+			await new Promise((resolve) => setTimeout(resolve, 10));
+		}
+
+		channel.send(chunk);
+	}
+}
+```
+
+## 4. 버퍼 저수준 이벤트 활용 예시
+
+```javascript
+const queue = [];
+channel.bufferedAmountLowThreshold = 64 * 1024;
+
+function safeEnqueue(data) {
+	queue.push(data);
+	pump();
+}
+
+function pump() {
+	while (queue.length && channel.readyState === "open" && channel.bufferedAmount < channel.bufferedAmountLowThreshold) {
+		channel.send(queue.shift());
+	}
+}
+
+channel.onbufferedamountlow = pump;
+```
+
+---
+
+# 브라우저 지원
+
+RTCDataChannel은 모던 브라우저에서 지원합니다. 다만 iOS는 백그라운드/저전력 정책의 영향을 받아 연결 유지가 제한될 수 있습니다.
+
+| 브라우저 | 지원 버전 | 특이사항                               |
+| -------- | --------- | -------------------------------------- |
+| Chrome   | 26+       | 완전 지원                              |
+| Firefox  | 22+       | 완전 지원                              |
+| Safari   | 11+       | iOS 백그라운드 제한 (재연결 로직 권장) |
+| Edge     | 79+       | Chrome과 동일                          |
+
+---
+
+# 실전 활용 사례
+
+## 1. P2P 채팅
+
+```javascript
+// 채널 만들기
+const chat = pc.createDataChannel("chat", { ordered: true });
+
+chat.onopen = () => {
+	document.getElementById("status").textContent = "연결됨";
+};
+
+chat.onmessage = (event) => {
+	const msg = JSON.parse(event.data);
+	addMessageToUI(msg.text, msg.sender);
+};
+
+// 메시지 보내기
+function sendMessage(text) {
+	if (chat.readyState === "open") {
+		const message = {
+			text: text,
+			sender: "me",
+			timestamp: Date.now()
+		};
+		chat.send(JSON.stringify(message));
+		addMessageToUI(text, "me");
+	}
+}
+```
+
+**장점**
+
+- 서버를 거치지 않아 빠름
+- 서버 비용 절약
+- 화상 통화하면서 채팅 가능
+
+## 2. 파일 공유
+
+```javascript
+// 파일 전송 채널
+const file = pc.createDataChannel("file", { ordered: true });
+
+async function shareFile(selectedFile) {
+	// 1. 파일 정보 먼저 보내기
+	file.send(
+		JSON.stringify({
+			name: selectedFile.name,
+			size: selectedFile.size,
+			type: "start"
+		})
+	);
+
+	// 2. 파일 데이터를 16KB씩 나눠서 보내기
+	const CHUNK = 16384;
+	const buffer = await selectedFile.arrayBuffer();
+
+	for (let i = 0; i < buffer.byteLength; i += CHUNK) {
+		file.send(buffer.slice(i, i + CHUNK));
+
+		// 진행률 표시
+		const percent = ((i / buffer.byteLength) * 100).toFixed(0);
+		updateProgress(percent);
+	}
+
+	// 3. 완료 신호
+	file.send(JSON.stringify({ type: "end" }));
+}
+```
+
+**장점**
+
+- Dropbox처럼 서버 없이 파일 공유
+- 대용량 파일도 직접 전송
+- 서버 저장 공간 불필요
+
+## 3. 게임 동기화
+
+```javascript
+// 게임 데이터 채널 (빠른 전송)
+const game = pc.createDataChannel("game", {
+	ordered: false,
+	maxRetransmits: 0
+});
+
+// 플레이어 위치를 60fps로 전송
+function sendPosition() {
+	const pos = {
+		x: player.x,
+		y: player.y,
+		rotation: player.rotation
+	};
+
+	if (game.readyState === "open") {
+		game.send(JSON.stringify(pos));
+	}
+
+	requestAnimationFrame(sendPosition);
+}
+
+// 상대 플레이어 위치 받기
+game.onmessage = (event) => {
+	const pos = JSON.parse(event.data);
+	updateOtherPlayer(pos.x, pos.y, pos.rotation);
+};
+```
+
+**장점**
+
+- 매우 낮은 지연 시간 (50-200ms)
+- 서버 부하 없음
+- P2P 멀티플레이 게임 구현 가능
+
+---
+
+# 정리
+
+이번 글에서는 **RTCDataChannel**에 대해 알아봤습니다.
+
+**핵심 내용**
+
+- 데이터 채널은 **브라우저끼리 직접 데이터를 주고받는 통로**
+- **SCTP** 프로토콜로 신뢰성과 순서를 유연하게 제어
+- 상황에 맞게 **4가지 모드 조합** 가능
+  - Reliable/Unreliable (신뢰성)
+  - Ordered/Unordered (순서)
+
+**시나리오별 설정**
+
+| 용도        | 설정                                     |
+| ----------- | ---------------------------------------- |
+| 채팅        | `ordered: true` (완전한 신뢰성)          |
+| 파일 전송   | `ordered: true` (완전한 신뢰성)          |
+| 게임 좌표   | `ordered: false, maxRetransmits: 0`      |
+| 센서 데이터 | `ordered: false, maxPacketLifeTime: 100` |
+
+**주의사항**
+
+- 버퍼 확인하면서 데이터 보내기
+- 채널 상태 확인 (`readyState`)
+- 큰 파일은 16KB씩 잘라서 전송
+
+**WebRTC 전체 그림**
+
+지금까지 WebRTC 시리즈에서 다룬 내용을 정리하면?
+
+1. **연결 구조**: 시그널링, SDP, ICE, STUN/TURN
+2. **미디어**: 카메라, 마이크, 화면 공유
+3. **제어**: PeerConnection, 이벤트, 품질 관리
+4. **데이터**: 채팅, 파일, 게임 등 모든 데이터 전송
+
+WebRTC는 **영상·음성·데이터를 모두 P2P로 전송**할 수 있는 강력한 플랫폼입니다.
+화상 통화만이 아니라 실시간 협업, 파일 공유, 게임, IoT 등 다양한 분야에 활용할 수 있습니다.
+
+지금까지 이론을 정리한 내용을 바탕으로 간단한 1:1 실시간 화상상담 서비스를 만들어볼 예정입니다.
+끝까지 읽어주셔서 감사합니다!
