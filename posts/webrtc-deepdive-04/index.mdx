@@ -506,26 +506,6 @@ async function sendLargeData(file) {
 }
 ```
 
-## 4. 버퍼 저수준 이벤트 활용 예시
-
-```javascript
-const queue = [];
-channel.bufferedAmountLowThreshold = 64 * 1024;
-
-function safeEnqueue(data) {
-	queue.push(data);
-	pump();
-}
-
-function pump() {
-	while (queue.length && channel.readyState === "open" && channel.bufferedAmount < channel.bufferedAmountLowThreshold) {
-		channel.send(queue.shift());
-	}
-}
-
-channel.onbufferedamountlow = pump;
-```
-
 ---
 
 # 브라우저 지원
