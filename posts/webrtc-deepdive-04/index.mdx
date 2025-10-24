@@ -72,11 +72,11 @@ DataChannel도 비슷하지만 큰 차이가 있습니다.
 
 ---
 
-# 스트림 제어 전송 프로토콜 (Stream Control Transmission Protocol, SCTP)
+# SCTP
 
 RTCDataChannel은 내부적으로 **[SCTP](https://developer.mozilla.org/ko/docs/Glossary/SCTP)**라는 프로토콜을 사용합니다.
 
-> 💡 **SCTP란?**
+> 💡 **스트림 제어 전송 프로토콜 (Stream Control Transmission Protocol, SCTP)이란?**
 >
 > "우체국"처럼 생각하면 쉽습니다.
 > 창구가 여러 개라서 줄이 안 꼬이고, 예비 도로까지 확보한 배송 시스템이에요.
@@ -250,7 +250,7 @@ const fileChannel = pc.createDataChannel("file", {
 
 실제로 어떤 설정을 써야 할까요? 대표적인 사용 사례를 볼게요.
 
-## 1. 채팅 애플리케이션
+## 채팅 애플리케이션
 
 **요구사항**: 모든 메시지가 순서대로 도착해야 함
 
@@ -287,7 +287,7 @@ function sendMessage(text) {
 - 대화가 뒤섞이면 안 되니까 → `ordered: true`
 - 메시지를 놓치면 안 되니까 → 완전한 신뢰성 (재전송 제한 없음)
 
-## 2. 실시간 게임 좌표
+## 실시간 게임 좌표
 
 **요구사항**: 최신 위치만 중요, 이전 데이터는 무시
 
@@ -319,7 +319,7 @@ positionChannel.onmessage = (event) => {
 - 0.5초 전 위치는 의미 없으니까 → `ordered: false`
 - 재전송하는 동안 새 위치가 또 오니까 → `maxRetransmits: 0`
 
-## 3. 파일 전송
+## 파일 전송
 
 **요구사항**: 모든 데이터 조각이 정확히 도착해야 함
 
@@ -432,7 +432,7 @@ channel.onmessage = (event) => {
 
 # 주의할 점
 
-## 1. 버퍼 관리
+## 버퍼 관리
 
 데이터를 너무 빨리 많이 보내면 버퍼가 가득 찹니다.
 
@@ -461,7 +461,7 @@ channel.onbufferedamountlow = () => {
 };
 ```
 
-## 2. 채널 상태 확인
+## 채널 상태 확인
 
 ```javascript
 // 메시지 보내기 전에 항상 확인
@@ -478,7 +478,7 @@ if (channel.readyState === "open") {
 // "closed" - 닫힘
 ```
 
-## 3. 메시지 크기 제한
+## 메시지 크기 제한
 
 브라우저마다 한 번에 보낼 수 있는 크기가 다릅니다.
 
@@ -523,7 +523,7 @@ RTCDataChannel은 모던 브라우저에서 지원합니다. 다만 iOS는 백�
 
 # 실전 활용 사례
 
-## 1. P2P 채팅
+## P2P 채팅
 
 ```javascript
 // 채널 만들기
@@ -558,7 +558,7 @@ function sendMessage(text) {
 - 서버 비용 절약
 - 화상 통화하면서 채팅 가능
 
-## 2. 파일 공유
+## 파일 공유
 
 ```javascript
 // 파일 전송 채널
@@ -597,7 +597,7 @@ async function shareFile(selectedFile) {
 - 대용량 파일도 직접 전송
 - 서버 저장 공간 불필요
 
-## 3. 게임 동기화
+## 게임 동기화
 
 ```javascript
 // 게임 데이터 채널 (빠른 전송)
@@ -636,11 +636,11 @@ game.onmessage = (event) => {
 
 ---
 
-# 정리
+# 마무리
 
 이번 글에서는 **RTCDataChannel**에 대해 알아봤습니다.
 
-**핵심 내용**
+## 정리
 
 - 데이터 채널은 **브라우저끼리 직접 데이터를 주고받는 통로**
 - **SCTP** 프로토콜로 신뢰성과 순서를 유연하게 제어

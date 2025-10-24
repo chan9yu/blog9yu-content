@@ -32,11 +32,9 @@ seriesOrder: 2
 **MediaStream**은 **택배 상자**라고 생각하면 쉽습니다.
 **MediaStreamTrack**은 상자 안에 담긴 **개별 물건**입니다.
 
-```
-📦 MediaStream (택배 상자)
-├── 🎥 비디오 트랙 (카메라 영상)
-└── 🎤 오디오 트랙 (마이크 소리)
-```
+> 📦 MediaStream (택배 상자)
+> ├── 🎥 비디오 트랙 (카메라 영상)
+> └── 🎤 오디오 트랙 (마이크 소리)
 
 하나의 상자(스트림)에 여러 물건(트랙)을 담을 수 있고,
 필요하면 물건만 꺼내서 다른 상자에 옮길 수도 있습니다.
@@ -98,24 +96,22 @@ MediaStream은 **0개 이상의 트랙을 담는 컨테이너**입니다.
 
 **가능한 조합들**
 
-```
-📦 빈 상자 (트랙 없음)
-
-📦 오디오만
-└── 🎤 마이크
-
-📦 비디오만
-└── 🎥 카메라
-
-📦 둘 다
-├── 🎥 카메라
-└── 🎤 마이크
-
-📦 여러 개
-├── 🎥 카메라
-├── 🖥️ 화면 공유
-└── 🎤 마이크
-```
+> 📦 빈 상자 (트랙 없음)
+>
+> 📦 오디오만
+> └── 🎤 마이크
+>
+> 📦 비디오만
+> └── 🎥 카메라
+>
+> 📦 둘 다
+> ├── 🎥 카메라
+> └── 🎤 마이크
+>
+> 📦 여러 개
+> ├── 🎥 카메라
+> ├── 🖥️ 화면 공유
+> └── 🎤 마이크
 
 ## 스트림은 어디서 올까?
 
@@ -237,23 +233,19 @@ console.log(track.readyState); // "live" 또는 "ended"
 
 ### live (활성)
 
-```
-📹 카메라 켜짐
-    ⬇️
-🟢 트랙 생성 (readyState = "live")
-    ⬇️
-📡 데이터 전송 중
-```
+> 📹 카메라 켜짐
+> ⬇
+> 🟢 트랙 생성 (readyState = "live")
+> ⬇
+> 📡 데이터 전송 중
 
 ### ended (종료)
 
-```
-🛑 트랙 종료 (readyState = "ended")
-    ⬇️
-📹 카메라 꺼짐
-    ⬇️
-❌ 다시 켤 수 없음 (새로 만들어야 함)
-```
+> 🛑 트랙 종료 (readyState = "ended")
+> ⬇
+> 📹 카메라 꺼짐
+> ⬇
+> ❌ 다시 켤 수 없음 (새로 만들어야 함)
 
 **트랙이 종료되는 경우**
 
@@ -556,7 +548,7 @@ const compositeStream = canvas.captureStream(30); // 30fps
 
 ## 리소스 정리는 필수!
 
-**나쁜 예 ❌**
+**나쁜 예**
 
 ```javascript
 // 이렇게 하면 카메라가 계속 켜져 있음
@@ -565,7 +557,7 @@ const stream = await getUserMedia({ video: true });
 // 정리 안 함!
 ```
 
-**좋은 예 ✅**
+**좋은 예**
 
 ```javascript
 const stream = await getUserMedia({ video: true });
@@ -622,15 +614,15 @@ try {
 **개발 환경**
 
 ```
-http://localhost:3000  ✅ (예외적으로 허용)
-http://127.0.0.1:3000  ✅ (예외적으로 허용)
-http://192.168.0.10:3000  ❌ (안 됨!)
+http://localhost:3000 (예외적으로 허용)
+http://127.0.0.1:3000 (예외적으로 허용)
+http://192.168.0.10:3000 (안 됨!)
 ```
 
 **프로덕션**
 
 ```
-https://your-domain.com  ✅ (필수!)
+https://your-domain.com (필수!)
 ```
 
 ## 모바일 고려사항
@@ -675,11 +667,11 @@ document.addEventListener("visibilitychange", () => {
 
 ---
 
-# 정리
+# 마무리
 
 이번 글에서는 WebRTC의 **MediaStream과 MediaStreamTrack**에 대해 알아보았습니다.
 
-## 핵심만 기억하세요
+## 정리
 
 **MediaStream (택배 상자)**
 
@@ -707,8 +699,6 @@ document.addEventListener("visibilitychange", () => {
 - 권한 에러 처리
 - HTTPS 필수
 - 모바일 최적화
-
-## 다음 글 예고
 
 다음 글에서는 **RTCPeerConnection의 이벤트 흐름**을 다루겠습니다.
 

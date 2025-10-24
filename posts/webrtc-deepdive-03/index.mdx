@@ -1,6 +1,6 @@
 ---
 title: "[WebRTC 박살내기] PeerConnection API와 이벤트 흐름"
-description: "WebRTC의 핵심 RTCPeerConnection을 완벽하게 이해하고, 연결 생성부터 이벤트 처리, 품질 관리, 연결 복구까지 실전 예제와 함께 알아봅니다."
+description: "WebRTC 박살내기 세번째 시리즈 입니다. WebRTC의 핵심 RTCPeerConnection을 완벽하게 이해하고, 연결 생성부터 이벤트 처리, 품질 관리, 연결 복구까지 실전 예제와 함께 알아봅니다."
 slug: "webrtc-deepdive-03"
 date: "2025-10-20T04:21:34.000Z"
 private: false
@@ -12,7 +12,7 @@ seriesOrder: 3
 
 # 서론
 
-안녕하세요! 지난 글에서는 **MediaStream과 MediaStreamTrack**을 배웠습니다.
+안녕하세요! 지난 글에서는 **MediaStream과 MediaStreamTrack**을 살펴보았습니다.
 카메라와 마이크를 켜고, 트랙을 제어하는 방법까지 알아보았는데요.
 
 이번에는 **"이 미디어를 실제로 어떻게 상대방에게 보낼까?"**를 다룹니다.
@@ -21,11 +21,13 @@ seriesOrder: 3
 `RTCPeerConnection`은 WebRTC의 핵심 객체로, 시그널링, SDP 교환, ICE 후보 처리를 실제로 실행하는 주체입니다.
 이 글에서는 `RTCPeerConnection`이 무엇이고, 실제로 어떻게 사용하는지 알아보겠습니다.
 
+---
+
 # RTCPeerConnection이란?
 
 RTCPeerConnection은 **두 피어 간의 P2P 연결을 관리하는 객체**입니다.
 
-이 객체가 담당하는 일은 다음과 같습니다.
+이 객체가 담당하는 일은 아래와 같은데요
 
 - **미디어 협상**: 어떤 코덱, 해상도로 통신할지 합의
 - **네트워크 경로 탐색**: 연결 가능한 모든 경로 찾기
@@ -36,7 +38,7 @@ RTCPeerConnection은 **두 피어 간의 P2P 연결을 관리하는 객체**입�
 
 ---
 
-# PeerConnection 생성
+# PeerConnection 생성하기
 
 ## 기본 설정
 
@@ -80,12 +82,16 @@ TURN 서버는 이런 상황에서 중계 역할을 합니다.
 단점은 모든 데이터가 TURN 서버를 거쳐야 해서 지연 시간이 증가하고, 대역폭을 소비해 비용이 발생할 수밖에 없다는 점입니다.
 그래서 WebRTC는 직접 연결을 먼저 시도하고, 실패할 때만 TURN 서버를 사용하게 됩니다.
 
+---
+
 # 이벤트 리스너 등록
 
 연결을 시작하기 전에 **먼저 이벤트 리스너를 등록**해야 합니다.
 그렇지 않으면 초기 단계에서 발생하는 중요한 이벤트를 놓칠 수 있습니다.
 
-## icecandidate
+![이벤트 발생 흐름](https://raw.githubusercontent.com/chan9yu/blog9yu-content/refs/heads/main/posts/webrtc-deepdive-03/images/image-02.png)
+
+## icecandidate - 연결 경로 찾기
 
 브라우저가 **연결 가능한 네트워크 경로(ICE Candidate)** 를 찾을 때마다 발생합니다.
 WebRTC는 NAT, 방화벽, 네트워크 종류(Wi-Fi, LTE 등)에 따라 서로 다른 경로를 탐색합니다.
@@ -94,18 +100,22 @@ WebRTC는 NAT, 방화벽, 네트워크 종류(Wi-Fi, LTE 등)에 따라 서로 �
 ```javascript
 pc.addEventListener("icecandidate", (event) => {
 	if (event.candidate) {
+		// 찾은 경로를 상대방에게 즉시 전송
 		signalingChannel.send({
 			type: "candidate",
 			candidate: event.candidate
 		});
+	} else {
+		// null이면 모든 경로 수집 완료
+		console.log("ICE 수집 완료");
 	}
 });
 ```
 
-> 💡 **참고**
+> 💡 **왜 즉시 보내나요?**
 >
-> ICE(Interactive Connectivity Establishment)는 두 피어 간 최적의 네트워크 경로를 자동으로 찾아주는 WebRTC의 핵심 메커니즘입니다.
-> 모든 후보를 수집한 뒤, 가장 안정적인 경로가 선택됩니다.
+> 연결 경로를 빨리 공유할수록 연결이 빨라집니다.
+> 모든 경로를 다 찾을 때까지 기다리지 않고, 찾는 즉시 전송하는 것이 효율적입니다.
 
 ## track
 
@@ -198,7 +208,7 @@ pc.addEventListener("negotiationneeded", async () => {
 > `negotiationneeded`는 브라우저가 "이제 SDP(세션 기술 정보)를 다시 맞춰야 한다"고 판단할 때 호출됩니다.
 > 수동으로 호출하는 이벤트가 아니라, 브라우저가 "우리 지금 다시 협상해야 해"라고 알려주는 신호입니다.
 
-![이벤트 발생 흐름](https://raw.githubusercontent.com/chan9yu/blog9yu-content/refs/heads/main/posts/webrtc-deepdive-03/images/image-02.png)
+---
 
 # 미디어 추가
 
@@ -552,21 +562,41 @@ useEffect(() => {
 
 ---
 
-# 정리
+# 마무리
 
 이번 글에서는 **RTCPeerConnection API**의 모든 것을 다뤘습니다.
 
-RTCPeerConnection은 WebRTC 연결의 핵심입니다.
-이벤트 리스너를 먼저 등록하고, 미디어를 추가하면 자동으로 협상이 시작됩니다.
-Offer/Answer/Candidate를 시그널링 채널로 주고받으면 연결이 완성되고, 이후에는 품질을 모니터링하고 관리합니다.
+## 정리
 
-**사용 시 기억할 것!**
+**PeerConnection의 역할**
 
-- 이벤트 리스너는 **맨 처음** 등록
-- `negotiationneeded`가 **자동 협상** 담당
-- 시그널링 채널은 **직접 구현** 필요
-- 패킷 손실률 5% 이상이면 **품질 조절**
-- 연결 끊기면 **ICE Restart**로 복구
-- 종료 시 **반드시 리소스 정리**
+- 미디어 협상
+- 네트워크 경로 탐색
+- 데이터 전송
+- 상태 관리
+
+**연결 순서**
+
+1. PeerConnection 생성
+2. 이벤트 리스너 등록 (먼저!)
+3. 미디어 추가 → negotiationneeded 자동 발생
+4. Offer/Answer 교환
+5. ICE Candidate 교환 (병렬)
+
+**핵심 이벤트**
+
+- `icecandidate`: 연결 경로 찾음
+- `track`: 상대방 미디어 수신
+- `connectionstatechange`: 연결 상태 변화
+- `negotiationneeded`: 재협상 필요
+
+**주의사항**
+
+- 이벤트 리스너 먼저 등록
+- `negotiationneeded`는 자동 발생
+- 패킷 손실률 5% 이상이면 품질 조절
+- 연결 끊기면 ICE Restart로 복구
+- 종료 시 반드시 리소스 정리
 
 다음 글에서는 실시간 채팅 / 파일 전송 / 게임 데이터 동기화 등 영상/음성이 아닌 일반 데이터를 P2P로 주고받는 **RTCDataChannel**에 대해 알아보겠습니다.
+끝까지 읽어주셔서 감사합니다!
