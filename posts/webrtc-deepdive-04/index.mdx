@@ -1,6 +1,6 @@
 ---
-title: "[WebRTC 박살내기] 데이터 채널 구조와 활용법"
-description: "WebRTC의 RTCDataChannel을 이해하고, 채팅·파일 전송·게임 동기화까지 실시간 데이터 전송의 모든 것을 알아봅니다."
+title: "[WebRTC 박살내기 #4] 데이터 채널 구조와 활용법"
+description: "WebRTC 박살내기 마지막 시리즈 입니다. WebRTC의 RTCDataChannel을 이해하고, 채팅·파일 전송·게임 동기화까지 실시간 데이터 전송의 모든 것을 알아봅니다."
 slug: "webrtc-deepdive-04"
 date: "2025-10-24T08:30:00.000Z"
 private: false
@@ -364,18 +364,6 @@ async function sendFile(file) {
 
 ---
 
-# 시나리오별 빠른 참고표
-
-| 사용 사례       | ordered | maxRetransmits / maxPacketLifeTime | 설명                          |
-| --------------- | ------- | ---------------------------------- | ----------------------------- |
-| **채팅**        | true    | –                                  | 순서 중요, 완전 신뢰          |
-| **파일 전송**   | true    | –                                  | 모든 조각 필요                |
-| **게임 좌표**   | false   | `0`                                | 최신값만 중요(손실 허용)      |
-| **센서 데이터** | false   | `maxPacketLifeTime: 100` (예시)    | 일정 시간 경과시 폐기         |
-| **제어 명령**   | true    | `3`                                | 제한 재전송(타임아웃 후 포기) |
-
----
-
 # 데이터 보내고 받기
 
 ## 다양한 데이터 타입
@@ -510,7 +498,8 @@ async function sendLargeData(file) {
 
 # 브라우저 지원
 
-RTCDataChannel은 모던 브라우저에서 지원합니다. 다만 iOS는 백그라운드/저전력 정책의 영향을 받아 연결 유지가 제한될 수 있습니다.
+RTCDataChannel은 모던 브라우저에서 지원합니다.
+다만 iOS는 백그라운드/저전력 정책의 영향을 받아 연결 유지가 제한될 수 있습니다.
 
 | 브라우저 | 지원 버전 | 특이사항                               |
 | -------- | --------- | -------------------------------------- |
@@ -518,121 +507,6 @@ RTCDataChannel은 모던 브라우저에서 지원합니다. 다만 iOS는 백�
 | Firefox  | 22+       | 완전 지원                              |
 | Safari   | 11+       | iOS 백그라운드 제한 (재연결 로직 권장) |
 | Edge     | 79+       | Chrome과 동일                          |
-
----
-
-# 실전 활용 사례
-
-## P2P 채팅
-
-```javascript
-// 채널 만들기
-const chat = pc.createDataChannel("chat", { ordered: true });
-
-chat.onopen = () => {
-	document.getElementById("status").textContent = "연결됨";
-};
-
-chat.onmessage = (event) => {
-	const msg = JSON.parse(event.data);
-	addMessageToUI(msg.text, msg.sender);
-};
-
-// 메시지 보내기
-function sendMessage(text) {
-	if (chat.readyState === "open") {
-		const message = {
-			text: text,
-			sender: "me",
-			timestamp: Date.now()
-		};
-		chat.send(JSON.stringify(message));
-		addMessageToUI(text, "me");
-	}
-}
-```
-
-**장점**
-
-- 서버를 거치지 않아 빠름
-- 서버 비용 절약
-- 화상 통화하면서 채팅 가능
-
-## 파일 공유
-
-```javascript
-// 파일 전송 채널
-const file = pc.createDataChannel("file", { ordered: true });
-
-async function shareFile(selectedFile) {
-	// 1. 파일 정보 먼저 보내기
-	file.send(
-		JSON.stringify({
-			name: selectedFile.name,
-			size: selectedFile.size,
-			type: "start"
-		})
-	);
-
-	// 2. 파일 데이터를 16KB씩 나눠서 보내기
-	const CHUNK = 16384;
-	const buffer = await selectedFile.arrayBuffer();
-
-	for (let i = 0; i < buffer.byteLength; i += CHUNK) {
-		file.send(buffer.slice(i, i + CHUNK));
-
-		// 진행률 표시
-		const percent = ((i / buffer.byteLength) * 100).toFixed(0);
-		updateProgress(percent);
-	}
-
-	// 3. 완료 신호
-	file.send(JSON.stringify({ type: "end" }));
-}
-```
-
-**장점**
-
-- Dropbox처럼 서버 없이 파일 공유
-- 대용량 파일도 직접 전송
-- 서버 저장 공간 불필요
-
-## 게임 동기화
-
-```javascript
-// 게임 데이터 채널 (빠른 전송)
-const game = pc.createDataChannel("game", {
-	ordered: false,
-	maxRetransmits: 0
-});
-
-// 플레이어 위치를 60fps로 전송
-function sendPosition() {
-	const pos = {
-		x: player.x,
-		y: player.y,
-		rotation: player.rotation
-	};
-
-	if (game.readyState === "open") {
-		game.send(JSON.stringify(pos));
-	}
-
-	requestAnimationFrame(sendPosition);
-}
-
-// 상대 플레이어 위치 받기
-game.onmessage = (event) => {
-	const pos = JSON.parse(event.data);
-	updateOtherPlayer(pos.x, pos.y, pos.rotation);
-};
-```
-
-**장점**
-
-- 매우 낮은 지연 시간 (50-200ms)
-- 서버 부하 없음
-- P2P 멀티플레이 게임 구현 가능
 
 ---
 
@@ -675,5 +549,7 @@ game.onmessage = (event) => {
 WebRTC는 **영상·음성·데이터를 모두 P2P로 전송**할 수 있는 강력한 플랫폼입니다.
 화상 통화만이 아니라 실시간 협업, 파일 공유, 게임, IoT 등 다양한 분야에 활용할 수 있습니다.
 
-지금까지 이론을 정리한 내용을 바탕으로 간단한 1:1 실시간 화상상담 서비스를 만들어볼 예정입니다.
-끝까지 읽어주셔서 감사합니다!
+지금까지 WebRTC의 핵심 개념과 동작 원리를 살펴봤어요.
+WebRTC 박살내기 시리즈는 여기서 마무리하겠습니다.
+
+긴 글 끝까지 읽어주셔서 감사합니다! 🙏
